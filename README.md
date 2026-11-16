@@ -1,5 +1,7 @@
 # PrintQ
 
+[![CI](https://github.com/TrebMcaf/PrintQ-Macarambon-MilbertJr-G01/actions/workflows/ci.yml/badge.svg)](https://github.com/TrebMcaf/PrintQ-Macarambon-MilbertJr-G01/actions/workflows/ci.yml)
+
 PrintQ is a pre-order and queue system for a campus print shop. Students upload their PDFs, choose
 the paper size, color, copies and binding, and get a tracking code. The shop sees every order in a
 queue and updates its status until it is ready for pickup. Payment is still done at the counter.
@@ -75,9 +77,28 @@ only operators can download the files, and only through the app.
 
 ## Running the tests
 
+Before every commit, run these three and make sure they pass:
+
 ```
+python manage.py check
+python manage.py makemigrations --check --dry-run
 python manage.py test
 ```
+
+With the server running, you can also run the smoke test, which logs in as the admin and operator
+from `.env` and checks that every role reaches its own pages:
+
+```
+python scripts/smoke_test.py
+```
+
+## Continuous integration
+
+Every push and pull request runs `.github/workflows/ci.yml` on GitHub Actions. It runs the full test
+suite twice, once on SQLite and once on PostgreSQL 16 (the same database engine as Supabase). It then
+creates the tables, seeds the data, starts the server and runs the smoke test against it, including
+signing up a student. The badge at the top of this file shows the latest result. If it is red, fix
+the problem before pushing anything else.
 
 ## Project structure
 

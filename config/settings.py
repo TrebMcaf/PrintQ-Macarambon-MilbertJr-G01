@@ -58,7 +58,9 @@ DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
 if DATABASE_URL:
     import dj_database_url
 
-    _db = dj_database_url.parse(DATABASE_URL, conn_max_age=600, conn_health_checks=True, ssl_require=True)
+    # SSL stays on for Supabase. Only CI's throwaway local Postgres container sets DB_SSL_REQUIRE=0.
+    _ssl = os.environ.get("DB_SSL_REQUIRE", "1") != "0"
+    _db = dj_database_url.parse(DATABASE_URL, conn_max_age=600, conn_health_checks=True, ssl_require=_ssl)
     if str(_db.get("PORT")) == "6543":
         # Supabase *transaction* pooler (PgBouncer): no persistent connections,
         # no server-side cursors, no prepared statements.

@@ -1,0 +1,100 @@
+name: CI
+
+# Runs on every push and pull request. A red result means the app is broken: fix it before pushing more.
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Tests and smoke test (${{ matrix.database }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        database: [sqlite, postgres]
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: printq
+          POSTGRES_PASSWORD: printq
+          POSTGRES_DB: printq_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U printq"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # CI-only values for a throwaway database. Real credentials live in your local .env, never here.
+      DJANGO_DEBUG: "1"
+      DJANGO_SECRET_KEY: ci-only-not-a-real-secret
+      DB_SSL_REQUIRE: "0"
+      SEED_ADMIN_EMAIL: admin@printq.test
+      SEED_ADMIN_PASSWORD: ci-admin-Pass-123
+      SEED_OPERATOR_EMAIL: operator@printq.test
+      SEED_OPERATOR_PASSWORD: ci-operator-Pass-123
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Use PostgreSQL (same engine as Supabase)
+        if: matrix.database == 'postgres'
+        run: echo "DATABASE_URL=postgres://printq:printq@localhost:5432/printq_ci" >> "$GITHUB_ENV"
+
+      - name: Django system check
+        run: python manage.py check
+
+      - name: No missing migrations
+        run: python manage.py makemigrations --check --dry-run
+
+      - name: Run test suite
+        run: python manage.py test --noinput --verbosity 2
+
+      - name: Create tables and seed data
+        run: |
+          python manage.py migrate --noinput
+          python manage.py seed
+          python manage.py db_status
+
+      - name: Start the server
+        run: |
+          nohup python manage.py runserver 127.0.0.1:8000 --noreload > server.log 2>&1 &
+
+      - name: Smoke test the running app
+        run: python scripts/smoke_test.py --base-url http://127.0.0.1:8000 --signup
+
+      - name: Refuses to run on SQLite when DEBUG is off
+        if: matrix.database == 'postgres'
+        run: |
+          if DJANGO_DEBUG=0 DATABASE_URL= python manage.py check > guard.log 2>&1; then
+            echo "Expected the app to refuse starting without DATABASE_URL when DEBUG is off"; exit 1
+          fi
+          grep -q "DATABASE_URL must point to PostgreSQL" guard.log
+
+      - name: Show server log on failure
+        if: failure()
+        run: cat server.log || true
