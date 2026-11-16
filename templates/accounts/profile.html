@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}My profile{% endblock %}
+{% block content %}
+<h1>My profile</h1>
+<div class="card">
+  <dl>
+    <dt>Full name</dt><dd>{{ profile_user.full_name }}</dd>
+    <dt>Email</dt><dd>{{ profile_user.email }}</dd>
+    <dt>Contact number</dt><dd>{{ profile_user.phone_number|default:"—" }}</dd>
+    <dt>Role</dt><dd>{{ profile_user.get_role_display }}</dd>
+    <dt>Member since</dt><dd>{{ profile_user.created_at|date:"M j, Y" }}</dd>
+  </dl>
+</div>
+<p>
+  <a class="button" href="{% url 'accounts:profile_edit' %}">Edit profile</a>
+  <a href="{% url 'accounts:password_change' %}">Change password</a>
+</p>
+{% endblock %}
