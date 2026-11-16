@@ -10,6 +10,14 @@ load_dotenv(BASE_DIR / ".env")
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "dev-insecure-change-me")
 DEBUG = os.environ.get("DJANGO_DEBUG", "1") == "1"
 ALLOWED_HOSTS = [h for h in os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",") if h]
+CSRF_TRUSTED_ORIGINS = [
+    o.strip() for o in os.environ.get("DJANGO_CSRF_TRUSTED_ORIGINS", "").split(",") if o.strip()
+]
+# Behind an HTTPS proxy such as Cloudflare, TLS ends at the proxy and the app receives plain HTTP.
+# Trust the proxy's X-Forwarded-Proto header so Django knows the original request was HTTPS.
+if os.environ.get("DJANGO_BEHIND_TLS_PROXY", "0") == "1":
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    USE_X_FORWARDED_HOST = False
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -25,6 +33,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -75,6 +84,13 @@ else:
 
     raise ImproperlyConfigured("DATABASE_URL must point to PostgreSQL/Supabase when DEBUG is off.")
 
+# The test suite never touches the real (Supabase) database: it runs on a throwaway SQLite file
+# unless DJANGO_TEST_DATABASE=postgres, which CI sets to also test against a PostgreSQL container.
+import sys as _sys
+
+if "test" in _sys.argv and os.environ.get("DJANGO_TEST_DATABASE", "sqlite") != "postgres":
+    DATABASES = {"default": {"ENGINE": "django.db.backends.sqlite3", "NAME": BASE_DIR / "db.sqlite3"}}
+
 AUTH_USER_MODEL = "accounts.User"
 LOGIN_URL = "accounts:login"
 LOGIN_REDIRECT_URL = "home"
@@ -101,13 +117,24 @@ STATIC_URL = "static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
+# Hashed + compressed static files in production (WhiteNoise). In DEBUG keep Django's default
+# storage so tests and runserver do not need collectstatic.
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {
+        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"
+        if DEBUG
+        else "whitenoise.storage.CompressedManifestStaticFilesStorage"
+    },
+}
+
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # --- PrintQ ---
 MAX_UPLOAD_MB = 25  # BR-06
 MAX_FILES_PER_ORDER = 5
 MAX_COPIES = 100
-PRIVATE_MEDIA_ROOT = BASE_DIR / "private_uploads"  # local storage backend; never web-served
+PRIVATE_MEDIA_ROOT = Path(os.environ.get("PRIVATE_MEDIA_ROOT") or BASE_DIR / "private_uploads")  # local storage backend; never web-served
 DATA_UPLOAD_MAX_MEMORY_SIZE = 26 * 1024 * 1024
 FILE_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")

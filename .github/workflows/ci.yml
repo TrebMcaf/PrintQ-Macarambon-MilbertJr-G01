@@ -63,7 +63,9 @@ jobs:
 
       - name: Use PostgreSQL (same engine as Supabase)
         if: matrix.database == 'postgres'
-        run: echo "DATABASE_URL=postgres://printq:printq@localhost:5432/printq_ci" >> "$GITHUB_ENV"
+        run: |
+          echo "DATABASE_URL=postgres://printq:printq@localhost:5432/printq_ci" >> "$GITHUB_ENV"
+          echo "DJANGO_TEST_DATABASE=postgres" >> "$GITHUB_ENV"
 
       - name: Django system check
         run: python manage.py check
