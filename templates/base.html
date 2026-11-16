@@ -1,0 +1,49 @@
+{% load static %}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#ffffff">
+  <title>{% block title %}PrintQ{% endblock %} · PrintQ</title>
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+</head>
+<body>
+<header class="nav">
+  <a class="brand" href="{% url 'home' %}">PrintQ</a>
+  <nav aria-label="Main">
+    {% with n=request.resolver_match.url_name %}
+    {% if user.is_authenticated %}
+      <a href="{% url 'home' %}"{% if n == 'student_dashboard' or n == 'operator_dashboard' or n == 'admin_dashboard' %} aria-current="page"{% endif %}>Dashboard</a>
+      {% if user.is_admin %}
+        <a href="{% url 'admin_students' %}"{% if n == 'admin_students' or n == 'admin_student_detail' %} aria-current="page"{% endif %}>Students</a>
+        <a href="{% url 'admin_operators' %}"{% if n == 'admin_operators' %} aria-current="page"{% endif %}>Operators</a>
+        <a href="{% url 'admin_shop' %}"{% if n == 'admin_shop' %} aria-current="page"{% endif %}>Shop</a>
+      {% elif user.is_operator %}
+        <a href="{% url 'orders:queue' %}"{% if n == 'queue' %} aria-current="page"{% endif %}>Queue</a>
+      {% else %}
+        <a href="{% url 'orders:new_order' %}"{% if n == 'new_order' or n == 'confirm_order' %} aria-current="page"{% endif %}>New order</a>
+        <a href="{% url 'orders:my_orders' %}"{% if n == 'my_orders' %} aria-current="page"{% endif %}>My orders</a>
+      {% endif %}
+      <a href="{% url 'orders:track' %}"{% if n == 'track' %} aria-current="page"{% endif %}>Track</a>
+      <a class="who" href="{% url 'accounts:profile' %}"{% if n == 'profile' or n == 'profile_edit' or n == 'password_change' %} aria-current="page"{% endif %}>{{ user.full_name }}</a>
+      <form method="post" action="{% url 'accounts:logout' %}" class="inline">
+        {% csrf_token %}<button type="submit" class="link">Log out</button>
+      </form>
+    {% else %}
+      <a href="{% url 'orders:track' %}"{% if n == 'track' %} aria-current="page"{% endif %}>Track</a>
+      <a href="{% url 'accounts:login' %}"{% if n == 'login' %} aria-current="page"{% endif %}>Log in</a>
+      <a href="{% url 'accounts:signup' %}"{% if n == 'signup' %} aria-current="page"{% endif %}>Sign up</a>
+    {% endif %}
+    {% endwith %}
+  </nav>
+</header>
+<main>
+  {% if messages %}
+    <ul class="messages">
+      {% for m in messages %}<li class="msg {{ m.tags }}">{{ m }}</li>{% endfor %}
+    </ul>
+  {% endif %}
+  {% block content %}{% endblock %}
+</main>
+</body>
+</html>
