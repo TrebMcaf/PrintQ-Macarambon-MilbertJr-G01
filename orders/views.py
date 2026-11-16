@@ -13,6 +13,7 @@ from accounts.decorators import operator_required, student_required
 from catalog.models import PrintRate
 
 from . import services, storage
+from .dashboards import queue_groups
 from .forms import DocumentFormSet, NotesForm
 from .models import BindingType, Order, OrderItem, Status
 from .services import ItemSpec
@@ -169,9 +170,7 @@ def cancel(request, order_id):
 
 @operator_required
 def queue(request):
-    active = Order.objects.filter(status__in=[Status.PENDING, Status.PRINTING, Status.READY]) \
-        .select_related("user").order_by("created_at")
-    return render(request, "orders/queue.html", {"orders": active})
+    return render(request, "orders/queue.html", {"groups": queue_groups()})
 
 
 @require_POST
@@ -187,7 +186,7 @@ def advance(request, order_id):
         raise Http404
     except (ValidationError, PermissionDenied) as exc:
         messages.error(request, _error_text(exc))
-    return redirect("orders:queue")
+    return redirect("home")
 
 
 def track(request):

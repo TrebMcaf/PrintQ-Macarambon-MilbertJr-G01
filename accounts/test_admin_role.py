@@ -102,6 +102,8 @@ class DashboardTests(AdminRoleBase):
         self.assertEqual(ctx["orders_today"], 2)
         self.assertEqual(ctx["revenue_total"], Decimal("20.00"))
         self.assertEqual(len(ctx["recent_students"]), 3)  # includes inactive
+        self.assertEqual(len(ctx["recent_orders"]), 2)
+        self.assertEqual(ctx["recent_orders"][0].user.pk, self.bob.pk)  # newest first, user preloaded
 
     def test_revenue_default_zero(self):
         self.client.force_login(self.admin)

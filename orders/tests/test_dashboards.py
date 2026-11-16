@@ -68,7 +68,8 @@ class DashboardTests(TestCase):
         self.assertEqual(resp.context["completed_today"], 1)
         self.assertEqual(resp.context["collected_today"], Decimal("10.00"))
         self.assertEqual(resp.context["placed_today"], 4)
-        self.assertContains(resp, "Open queue")
+        self.assertContains(resp, self.pending.tracking_code)
+        self.assertContains(resp, "Start printing")
 
     def test_home_redirects_by_role(self):
         self.client.force_login(self.operator)
@@ -80,7 +81,7 @@ class DashboardTests(TestCase):
         self.client.force_login(self.student)
         resp = self.client.get(reverse("student_dashboard"))
         self.assertContains(resp, 'href="/"')
-        self.assertContains(resp, ">Dashboard</a>")
+        self.assertContains(resp, ">Home</a>")
 
     def test_signup_shows_message(self):
         resp = self.client.post(reverse("accounts:signup"), {

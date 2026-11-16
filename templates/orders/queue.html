@@ -1,30 +1,9 @@
 {% extends "base.html" %}
-{% block title %}Queue{% endblock %}
+{% block title %}Print queue{% endblock %}
 {% block content %}
-<h1>Active queue</h1>
-{% if orders %}
-<p class="muted">Oldest first. {{ orders|length }} active order{{ orders|length|pluralize }}.</p>
-<table class="stack">
-  <thead><tr><th>Tracking code</th><th>Student</th><th>Status</th><th class="num">Total</th><th>Placed</th><th>Next step</th></tr></thead>
-  <tbody>
-  {% for o in orders %}
-    <tr>
-      <td class="lead" data-label="Tracking code"><a href="{% url 'orders:order_detail' o.pk %}">{{ o.tracking_code }}</a></td>
-      <td data-label="Student">{{ o.user.full_name }}</td>
-      <td data-label="Status"><span class="badge {{ o.status }}">{{ o.get_status_display }}</span></td>
-      <td class="num" data-label="Total">₱{{ o.total_amount }}</td>
-      <td data-label="Placed">{{ o.created_at|date:"M j, H:i" }}</td>
-      <td class="row-actions">
-        {% for s in o.next_statuses %}
-        <form method="post" action="{% url 'orders:advance' o.pk %}" class="inline">
-          {% csrf_token %}<input type="hidden" name="status" value="{{ s }}">
-          <button type="submit">Mark {{ s|lower }}</button>
-        </form>
-        {% endfor %}
-      </td>
-    </tr>
-  {% endfor %}
-  </tbody>
-</table>
-{% else %}<p class="muted">The queue is empty. New orders appear here as students submit them.</p>{% endif %}
+<div class="page-head">
+  <h1>Print queue</h1>
+  <p class="lead-sm">Oldest first in each column.</p>
+</div>
+{% include "partials/queue_board.html" %}
 {% endblock %}

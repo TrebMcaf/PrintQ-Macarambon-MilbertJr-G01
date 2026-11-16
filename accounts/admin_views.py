@@ -35,6 +35,7 @@ def admin_dashboard(request):
         "revenue_total": revenue or ZERO,
         "recent_students": User.objects.filter(role=Role.STUDENT).annotate(order_count=Count("orders"))
         .order_by("-created_at", "-user_id")[:5],
+        "recent_orders": Order.objects.select_related("user").order_by("-created_at", "-pk")[:8],
     }
     return render(request, "manage/dashboard.html", ctx)
 
@@ -96,7 +97,6 @@ def operator_list(request):
 def shop_settings(request):
     shop = Shop.current()
     if shop is None:
-        messages.error(request, "No shop is configured yet. Run python manage.py seed to create it.")
         return render(request, "manage/shop.html", {"shop": None})
     rates_qs = PrintRate.objects.order_by("paper_size", "-color_mode")
     shop_form = ShopForm(instance=shop)
