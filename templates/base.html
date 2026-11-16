@@ -76,23 +76,34 @@
 <script src="{% static 'vendor/bootstrap/bootstrap.bundle.min.js' %}"></script>
 <script>
 (function () {
-  var buttons = document.querySelectorAll('[data-copy]');
-  if (!navigator.clipboard) {
-    buttons.forEach(function (btn) { btn.hidden = true; });
-    return;
-  }
-  buttons.forEach(function (btn) {
-    btn.addEventListener('click', function () {
-      var target = document.querySelector(btn.getAttribute('data-copy'));
-      if (!target) { return; }
-      navigator.clipboard.writeText(target.textContent.trim()).then(function () {
-        var original = btn.textContent;
-        btn.textContent = 'Copied';
-        setTimeout(function () { btn.textContent = original; }, 1500);
-      });
+  window.PrintQ = window.PrintQ || {};
+  window.PrintQ.bindCopyButtons = function (root) {
+    var buttons = (root || document).querySelectorAll('[data-copy]');
+    buttons.forEach(function (btn) {
+      if (btn.getAttribute('data-bound') === '1') { return; }
+      if (!navigator.clipboard) {
+        btn.hidden = true;
+      } else {
+        btn.addEventListener('click', function () {
+          var target = document.querySelector(btn.getAttribute('data-copy'));
+          if (!target) { return; }
+          navigator.clipboard.writeText(target.textContent.trim()).then(function () {
+            var original = btn.textContent;
+            btn.textContent = 'Copied';
+            setTimeout(function () { btn.textContent = original; }, 1500);
+          });
+        });
+      }
+      btn.setAttribute('data-bound', '1');
     });
-  });
+  };
+  window.PrintQ.bindCopyButtons(document);
 })();
 </script>
+{% if live %}
+{{ live|json_script:"live-config" }}
+<div id="live-announcer" class="visually-hidden" role="status" aria-live="polite"></div>
+<script src="{% static 'js/live.js' %}" defer></script>
+{% endif %}
 </body>
 </html>

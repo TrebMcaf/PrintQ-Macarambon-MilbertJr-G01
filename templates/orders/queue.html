@@ -5,5 +5,6 @@
   <h1>Print queue</h1>
   <p class="lead-sm">Oldest first in each column.</p>
 </div>
-{% include "partials/queue_board.html" %}
+<div id="live-bar" class="live-bar alert alert-info" hidden><span id="live-bar-text">Queue updated.</span> <button type="button" class="btn btn-primary btn-sm" id="live-apply">Show</button></div>
+<div id="live-region">{% include "partials/queue_board.html" %}</div>
 {% endblock %}

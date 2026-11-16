@@ -250,3 +250,9 @@ input[type=file].form-control::file-selector-button { font-weight: 600; color: v
 @media (max-width: 575.98px) {
   .steps li { font-size: .75rem; }
 }
+
+/* Live update bar for operators */
+.live-bar { position: sticky; top: .5rem; z-index: 1020; box-shadow: 0 6px 18px -10px rgba(28,33,40,.35); }
+@media (prefers-reduced-motion: no-preference) { #live-region { transition: opacity .2s ease-out; } }
+.live-bar:not([hidden]) { display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
+.live-bar[hidden] { display: none !important; }

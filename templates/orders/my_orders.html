@@ -6,6 +6,7 @@
   <a class="btn btn-primary btn-block-sm" href="{% url 'orders:new_order' %}">New print order</a>
 </div>
 
+<div id="live-region">
 {% if orders %}
 <div class="table-card">
   <table class="table table-hover align-middle stack">
@@ -25,4 +26,5 @@
 {% else %}
   {% include "partials/empty.html" with title="No orders yet" text="Upload a PDF to place your first order." %}
 {% endif %}
+</div>
 {% endblock %}

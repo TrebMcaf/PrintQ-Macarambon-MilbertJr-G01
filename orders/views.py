@@ -4,10 +4,10 @@ from decimal import Decimal
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, SuspiciousFileOperation, ValidationError
-from django.http import FileResponse, Http404, HttpResponseBadRequest
+from django.http import FileResponse, Http404, HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.text import get_valid_filename
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
 
 from accounts.decorators import operator_required, student_required
 from catalog.models import PrintRate
@@ -15,6 +15,7 @@ from catalog.models import PrintRate
 from . import services, storage
 from .dashboards import queue_groups
 from .forms import DocumentFormSet, NotesForm
+from .live import change_message, live_context, parse_since, scope_for, version_for
 from .models import BindingType, Order, OrderItem, Status
 from .services import ItemSpec
 
@@ -50,7 +51,27 @@ def _draft_paths(draft) -> list[str]:
 @student_required
 def my_orders(request):
     orders = Order.objects.filter(user=request.user).order_by("-created_at")
-    return render(request, "orders/my_orders.html", {"orders": orders})
+    return render(request, "orders/my_orders.html", {"orders": orders, "live": live_context(request, "auto")})
+
+
+@login_required
+@require_GET
+def live(request):
+    """Cheap change check: 204 when the page's version is current, else JSON with the new version and a message."""
+    scope = scope_for(request.user)
+    if scope is None:
+        raise PermissionDenied
+    current = version_for(scope)
+    seen = request.GET.get("v", "")
+    if seen == current:
+        response = HttpResponse(status=204)
+    else:
+        response = JsonResponse({
+            "version": current,
+            "message": change_message(request.user, scope, parse_since(seen)),
+        })
+    response["Cache-Control"] = "no-store"
+    return response
 
 
 @student_required
@@ -148,11 +169,13 @@ def order_detail(request, order_id):
     order = get_object_or_404(Order.objects.select_related("user"), pk=order_id)
     if request.user.is_student and order.user_id != request.user.pk:
         raise Http404
+    is_owner_student = request.user.is_student and order.user_id == request.user.pk
     return render(request, "orders/order_detail.html", {
         "order": order,
         "items": order.items.select_related("rate"),
         "logs": order.status_logs.select_related("changed_by"),
-        "can_cancel": order.can_cancel and request.user.is_student and order.user_id == request.user.pk,
+        "can_cancel": order.can_cancel and is_owner_student,
+        "live": live_context(request, "auto") if is_owner_student else None,
     })
 
 
@@ -170,7 +193,7 @@ def cancel(request, order_id):
 
 @operator_required
 def queue(request):
-    return render(request, "orders/queue.html", {"groups": queue_groups()})
+    return render(request, "orders/queue.html", {"groups": queue_groups(), "live": live_context(request, "notify")})
 
 
 @require_POST

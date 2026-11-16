@@ -5,6 +5,7 @@
   <h1>Hi, {{ user.full_name }}</h1>
 </div>
 
+<div id="live-region">
 {% if not recent_orders %}
   {% url 'orders:new_order' as new_order_url %}
   {% include "partials/empty.html" with title="Print your first document" text="It takes about a minute. You pay at the counter when it's ready." cta_url=new_order_url cta_label="New print order" steps=True %}
@@ -46,4 +47,5 @@
   </div>
   <p class="mt-3"><a href="{% url 'orders:my_orders' %}">See all orders</a></p>
 {% endif %}
+</div>
 {% endblock %}

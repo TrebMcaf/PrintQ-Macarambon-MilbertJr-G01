@@ -3,12 +3,15 @@
 {% block content %}
 <div class="page-head">
   <h1>Print queue</h1>
-  <p class="summary-line">
+</div>
+<div id="live-bar" class="live-bar alert alert-info" hidden><span id="live-bar-text">Queue updated.</span> <button type="button" class="btn btn-primary btn-sm" id="live-apply">Show</button></div>
+<div id="live-region">
+  <p class="summary-line mt-2 mb-3">
     <span>Today:</span>
     <span><strong>{{ placed_today }}</strong> placed</span>
     <span><strong>{{ completed_today }}</strong> completed</span>
     <span><strong>₱{{ collected_today|floatformat:2 }}</strong> collected</span>
   </p>
+  {% include "partials/queue_board.html" %}
 </div>
-{% include "partials/queue_board.html" %}
 {% endblock %}
