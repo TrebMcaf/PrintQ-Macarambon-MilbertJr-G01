@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Admin dashboard{% endblock %}
+{% block content %}
+<h1>Admin dashboard</h1>
+<p class="muted">{% now "l, M j, Y" %}{% if shop %} · {{ shop.name }}{% endif %}</p>
+
+<div class="stats">
+  <div class="stat"><span class="stat-num">{{ student_count }}</span><span class="stat-label">Students</span></div>
+  <div class="stat"><span class="stat-num">{{ operator_count }}</span><span class="stat-label">Operators</span></div>
+  <div class="stat"><span class="stat-num">{{ active_orders }}</span><span class="stat-label">Active orders</span></div>
+  <div class="stat"><span class="stat-num">{{ orders_today }}</span><span class="stat-label">Orders today</span></div>
+</div>
+
+<div class="stats">
+  <div class="stat"><span class="stat-num">{{ orders_total }}</span><span class="stat-label">Total orders</span></div>
+  <div class="stat"><span class="stat-num">₱{{ revenue_total }}</span><span class="stat-label">Revenue (completed)</span></div>
+</div>
+
+{% if shop %}
+<div class="card">
+  <strong>{{ shop.name }}</strong> · {{ shop.location }}{% if shop.contact_phone %} · {{ shop.contact_phone }}{% endif %}
+  <p>{% if shop.is_active %}Accepting online orders{% else %}Not accepting online orders{% endif %} · <a href="{% url 'admin_shop' %}">Edit shop &amp; rates</a></p>
+</div>
+{% else %}
+<div class="card notice">No shop is configured yet. Run <code>python manage.py seed</code>.</div>
+{% endif %}
+
+<div class="actions">
+  <a class="button" href="{% url 'admin_students' %}">Students</a>
+  <a class="button secondary" href="{% url 'admin_operators' %}">Operators</a>
+  <a class="button secondary" href="{% url 'admin_shop' %}">Shop &amp; rates</a>
+</div>
+
+<h2>Newest students</h2>
+<table class="stack">
+  <thead><tr><th>Name</th><th>Email</th><th class="num">Orders</th><th>Joined</th></tr></thead>
+  <tbody>
+  {% for s in recent_students %}
+    <tr>
+      <td class="lead" data-label="Name"><a href="{% url 'admin_student_detail' s.pk %}">{{ s.full_name }}</a></td>
+      <td data-label="Email">{{ s.email }}</td>
+      <td class="num" data-label="Orders">{{ s.order_count }}</td>
+      <td data-label="Joined">{{ s.created_at|date:"M j, Y" }}</td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="4" class="muted">No students yet.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

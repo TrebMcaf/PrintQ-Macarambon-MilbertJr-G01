@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Shop &amp; rates{% endblock %}
+{% block content %}
+<h1>Shop &amp; rates</h1>
+{% if not shop %}
+<p class="muted">No shop exists yet. Run <code>python manage.py seed</code> first.</p>
+{% else %}
+<form method="post" class="card form">
+  {% csrf_token %}<input type="hidden" name="section" value="shop">
+  {{ shop_form.as_p }}
+  <button type="submit">Save shop</button>
+</form>
+
+<h2>Print rates</h2>
+<form method="post">
+  {% csrf_token %}<input type="hidden" name="section" value="rates">
+  {{ rate_formset.management_form }}
+  {{ rate_formset.non_form_errors }}
+  <table class="stack">
+    <thead><tr><th>Paper / color</th><th class="num">Price per page (₱)</th><th>Active</th></tr></thead>
+    <tbody>
+    {% for f in rate_formset %}
+      <tr>
+        <td class="lead" data-label="Paper / color">{{ f.id }}{{ f.instance.get_paper_size_display }} / {{ f.instance.get_color_mode_display }}</td>
+        <td class="num" data-label="Price per page (₱)">{{ f.price_per_page.errors }}{{ f.price_per_page }}</td>
+        <td data-label="Active">{{ f.is_active }}{{ f.is_active.errors }}</td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="3" class="muted">No print rates yet.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <p class="muted">Rates can be disabled but never deleted, so past orders keep their prices.</p>
+  <button type="submit">Save rates</button>
+</form>
+{% endif %}
+{% endblock %}
