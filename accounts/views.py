@@ -5,7 +5,7 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import redirect, render
 from django.urls import reverse_lazy
 
-from .forms import ProfileForm, SignupForm
+from .forms import EmailLoginForm, ProfileForm, SignupForm
 from .models import User
 
 
@@ -16,7 +16,7 @@ def signup(request):
     if request.method == "POST" and form.is_valid():
         user = form.save()
         login(request, user, backend="django.contrib.auth.backends.ModelBackend")
-        messages.success(request, f"Account created. Welcome to PrintQ, {user.full_name}!")
+        messages.success(request, f"Account created. Welcome to PrintQ, {user.full_name}.")
         return redirect("home")
     return render(request, "accounts/signup.html", {"form": form})
 
@@ -41,6 +41,7 @@ def profile_edit(request):
 
 class LoginView(auth_views.LoginView):
     template_name = "accounts/login.html"
+    authentication_form = EmailLoginForm
     redirect_authenticated_user = True
 
     def form_valid(self, form):

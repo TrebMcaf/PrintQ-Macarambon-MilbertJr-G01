@@ -1,11 +1,21 @@
 {% extends "base.html" %}
 {% block title %}Sign up{% endblock %}
 {% block content %}
-<h1>Student sign up</h1>
-<form method="post" class="card form">
-  {% csrf_token %}
-  {{ form.as_p }}
-  <button type="submit">Create account</button>
-</form>
-<p>Already registered? <a href="{% url 'accounts:login' %}">Log in</a>.</p>
+<div class="auth">
+  <div class="auth-intro">
+    <h1>Create your student account</h1>
+    <p class="lead-sm">Upload your PDFs, see the price, and pick up at {{ shop.name|default:"the print shop" }}.</p>
+    {% include "partials/next_steps.html" %}
+  </div>
+  <div class="card auth-card">
+    <div class="card-body">
+      <form method="post">
+        {% csrf_token %}
+        {% include "partials/form.html" with form=form %}
+        <button type="submit" class="btn btn-primary w-100">Create account</button>
+      </form>
+      <p class="text-muted mt-3 mb-0">Already registered? <a href="{% url 'accounts:login' %}">Log in</a>.</p>
+    </div>
+  </div>
+</div>
 {% endblock %}

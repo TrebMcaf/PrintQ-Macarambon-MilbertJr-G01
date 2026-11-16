@@ -1,52 +1,79 @@
 {% extends "base.html" %}
 {% block title %}Order {{ order.tracking_code }}{% endblock %}
 {% block content %}
-<h1>Order {{ order.tracking_code }}</h1>
-<div class="status-line">
-  <span class="badge lg {{ order.status }}">{{ order.get_status_display }}</span>
-  {% if order.status == "READY" and user.is_student %}<span>Ready at the counter. Pay ₱{{ order.total_amount }} on pickup.</span>{% endif %}
+<div class="page-head">
+  <h1>Order {{ order.tracking_code }}</h1>
+  {% if not user.is_student %}<p class="lead-sm">Student: {{ order.user.full_name }}</p>{% endif %}
 </div>
-<p class="muted">Placed {{ order.created_at|date:"M j, Y H:i" }}{% if not user.is_student %} by {{ order.user.full_name }}{% endif %}</p>
-{% if order.notes %}<p>Notes: {{ order.notes }}</p>{% endif %}
 
-<h2>Items</h2>
-<table class="stack">
-  <thead><tr><th>File</th><th>Paper / color</th><th class="num">Pages</th><th class="num">Copies</th><th>Binding</th><th class="num">Unit price</th><th class="num">Subtotal</th></tr></thead>
-  <tbody>
-  {% for i in items %}
-    <tr>
-      <td class="lead" data-label="File">{{ i.file_name }}{% if user.is_operator %} <a href="{% url 'orders:download_item' i.pk %}">Download</a>{% endif %}</td>
-      <td data-label="Paper / color">{{ i.rate.get_paper_size_display }} / {{ i.rate.get_color_mode_display }}</td>
-      <td class="num" data-label="Pages">{{ i.page_count }}</td>
-      <td class="num" data-label="Copies">{{ i.copies }}</td>
-      <td data-label="Binding">{{ i.get_binding_type_display }}</td>
-      <td class="num" data-label="Unit price">₱{{ i.unit_price }}</td>
-      <td class="num" data-label="Subtotal">₱{{ i.subtotal }}</td>
-    </tr>
-  {% empty %}<tr><td colspan="7" class="muted">No items.</td></tr>{% endfor %}
-  </tbody>
-  <tfoot><tr><th colspan="6" class="num">Total</th><td class="num total" data-label="Total">₱{{ order.total_amount }}</td></tr></tfoot>
-</table>
+{% include "partials/ticket.html" with order=order %}
+{% include "partials/steps.html" with status=order.status %}
 
-{% if can_cancel %}
-<form method="post" action="{% url 'orders:cancel' order.pk %}" class="actions">
-  {% csrf_token %}<button type="submit" class="danger">Cancel order</button>
-  <span class="muted">You can cancel until the shop starts printing.</span>
-</form>
+{% if order.status == "READY" and user.is_student %}
+<div class="alert alert-success mt-4">Ready at the counter. Pay ₱{{ order.total_amount }} on pickup.</div>
 {% endif %}
 
-<h2>Status history</h2>
-<table class="stack">
-  <thead><tr><th>When</th><th>From</th><th>To</th><th>By</th></tr></thead>
-  <tbody>
-  {% for l in logs %}
-    <tr>
-      <td class="lead" data-label="When">{{ l.changed_at|date:"M j, Y H:i" }}</td>
-      <td data-label="From">{% if l.previous_status %}{{ l.get_previous_status_display }}{% else %}—{% endif %}</td>
-      <td data-label="To"><span class="badge {{ l.new_status }}">{{ l.get_new_status_display }}</span></td>
-      <td data-label="By">{{ l.changed_by.full_name }}</td>
-    </tr>
+{% if user.is_operator and order.next_statuses %}
+<div class="d-flex flex-wrap gap-2 mt-4">
+  {% for s in order.next_statuses %}
+  <form method="post" action="{% url 'orders:advance' order.pk %}">
+    {% csrf_token %}
+    <input type="hidden" name="status" value="{{ s }}">
+    <button type="submit" class="btn btn-primary">Mark {{ s|lower }}</button>
+  </form>
   {% endfor %}
-  </tbody>
-</table>
+</div>
+{% endif %}
+
+<h2 class="section-title mt-4">Documents</h2>
+<div class="table-card">
+  <table class="table align-middle stack">
+    <thead>
+      <tr>
+        <th>File</th><th>Paper / color</th><th class="num">Pages</th><th class="num">Copies</th>
+        <th>Binding</th><th class="num">Unit price</th><th class="num">Subtotal</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for i in items %}
+      <tr>
+        <td class="lead" data-label="File">
+          {{ i.file_name }}{% if user.is_operator %} <a class="btn btn-outline-secondary btn-sm ms-2" href="{% url 'orders:download_item' i.pk %}">Download</a>{% endif %}
+        </td>
+        <td data-label="Paper / color">{{ i.rate.get_paper_size_display }} / {{ i.rate.get_color_mode_display }}</td>
+        <td class="num" data-label="Pages">{{ i.page_count }}</td>
+        <td class="num" data-label="Copies">{{ i.copies }}</td>
+        <td data-label="Binding">{{ i.get_binding_type_display }}</td>
+        <td class="num" data-label="Unit price">₱{{ i.unit_price }}</td>
+        <td class="num" data-label="Subtotal">₱{{ i.subtotal }}</td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="7" class="text-muted">No items.</td></tr>
+    {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr><th colspan="6" class="num">Total</th><td class="num" data-label="Total">₱{{ order.total_amount }}</td></tr>
+    </tfoot>
+  </table>
+</div>
+{% if order.notes %}<p class="mt-3">Notes: {{ order.notes }}</p>{% endif %}
+
+{% if can_cancel %}
+<div class="mt-4">
+  <form method="post" action="{% url 'orders:cancel' order.pk %}" onsubmit="return confirm('Cancel this order?');">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-outline-danger">Cancel order</button>
+  </form>
+  <p class="text-muted small mt-2 mb-0">You can cancel until printing starts.</p>
+</div>
+{% endif %}
+
+<h2 class="section-title mt-4">History</h2>
+<ul class="list-unstyled mb-0">
+  {% for l in logs %}
+  <li class="mb-2">{{ l.changed_at|date:"M j, g:i A" }} — {% if l.previous_status %}{{ l.get_previous_status_display }} → {% endif %}{{ l.get_new_status_display }} by {{ l.changed_by.full_name|default:"System" }}</li>
+  {% empty %}
+  <li class="text-muted">No changes yet.</li>
+  {% endfor %}
+</ul>
 {% endblock %}

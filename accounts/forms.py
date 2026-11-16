@@ -2,6 +2,7 @@ import re
 
 from django import forms
 from django.contrib.auth import password_validation
+from django.contrib.auth.forms import AuthenticationForm
 from django.forms import modelformset_factory
 
 from catalog.models import PrintRate, Shop
@@ -44,6 +45,15 @@ class SignupForm(forms.ModelForm):
         if commit:
             user.save()
         return user
+
+
+class EmailLoginForm(AuthenticationForm):
+    """Login form that asks for an email address (the User model's USERNAME_FIELD)."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["username"].widget = forms.EmailInput(attrs={"autocomplete": "email", "autofocus": True})
+        self.fields["username"].label = "Email"
 
 
 class ProfileForm(forms.ModelForm):

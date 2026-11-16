@@ -1,17 +1,38 @@
 {% extends "base.html" %}
 {% block title %}Track an order{% endblock %}
 {% block content %}
-<h1>Track an order</h1>
-<form method="get" class="card form">
-  <label for="code">Tracking code</label>
-  <input id="code" name="code" value="{{ code }}" placeholder="PQ-2026-0001" maxlength="12">
-  <button type="submit">Track</button>
-</form>
+<div class="page-head">
+  <h1>Track an order</h1>
+  <p class="lead-sm">Enter the code from your order, like PQ-2026-0001.</p>
+</div>
+
+<div class="card mb-4">
+  <div class="card-body">
+    <form method="get" action="{% url 'orders:track' %}" class="row g-2 align-items-end">
+      <div class="col-sm">
+        <label class="form-label" for="code">Tracking code</label>
+        <input id="code" name="code" class="form-control" value="{{ code }}" maxlength="12" inputmode="text" autocapitalize="characters" autocomplete="off" placeholder="PQ-2026-0001">
+      </div>
+      <div class="col-sm-auto">
+        <button type="submit" class="btn btn-primary btn-block-sm">Track</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 {% if searched %}
   {% if order %}
-    <p class="result">Order <strong>{{ order.tracking_code }}</strong>: <span class="badge lg {{ order.status }}">{{ order.get_status_display }}</span></p>
+  <div class="card">
+    <div class="card-body">
+      <div class="d-flex flex-wrap align-items-center gap-3">
+        <span class="fw-semibold">{{ order.tracking_code }}</span>
+        <span class="badge status {{ order.status }} lg">{{ order.get_status_display }}</span>
+      </div>
+      {% include "partials/steps.html" with status=order.status %}
+    </div>
+  </div>
   {% else %}
-    <p class="result muted">Order not found. Check the code and try again.</p>
+  <div class="alert alert-warning">Order not found. Check the code on your order page and try again.</div>
   {% endif %}
 {% endif %}
 {% endblock %}

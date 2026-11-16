@@ -1,12 +1,22 @@
 {% extends "base.html" %}
 {% block title %}Log in{% endblock %}
 {% block content %}
-<h1>Log in</h1>
-<form method="post" class="card form">
-  {% csrf_token %}
-  {{ form.as_p }}
-  <input type="hidden" name="next" value="{{ next }}">
-  <button type="submit">Log in</button>
-</form>
-<p>No account? <a href="{% url 'accounts:signup' %}">Sign up as a student</a>.</p>
+<div class="auth">
+  <div class="auth-intro">
+    <h1>Print without the line</h1>
+    <p class="lead-sm">Upload your PDFs, see the price, and pick up at {{ shop.name|default:"the print shop" }}.</p>
+    {% include "partials/next_steps.html" %}
+  </div>
+  <div class="card auth-card">
+    <div class="card-body">
+      <form method="post">
+        {% csrf_token %}
+        {% include "partials/form.html" with form=form %}
+        <input type="hidden" name="next" value="{{ next }}">
+        <button type="submit" class="btn btn-primary w-100">Log in</button>
+      </form>
+      <p class="text-muted mt-3 mb-0">No account? <a href="{% url 'accounts:signup' %}">Sign up as a student</a>.</p>
+    </div>
+  </div>
+</div>
 {% endblock %}
