@@ -99,6 +99,7 @@ suite twice, once on SQLite and once on PostgreSQL 16 (the same database engine 
 creates the tables, seeds the data, starts the server and runs the smoke test against it, including
 signing up a student. The badge at the top of this file shows the latest result. If it is red, fix
 the problem before pushing anything else.
+Deployment to the server is separate and local, it does not use GitHub (see `deploy/DEPLOY.md`).
 
 ## Project structure
 
