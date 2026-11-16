@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}New order{% endblock %}
+{% block content %}
+<h1>New order</h1>
+<p class="muted">PDF only, up to 25 MB each, up to 5 files. Binding is free. You'll see the total before you place the order.</p>
+
+<form method="post" enctype="multipart/form-data" class="form upload-form">
+  {% csrf_token %}
+  {{ formset.management_form }}
+  {{ formset.non_form_errors }}
+  {% for form in formset %}
+  {% if forloop.counter == 2 %}<details class="more-docs"{% if formset.is_bound %} open{% endif %}><summary>Add more documents (up to {{ formset|length }} in total)</summary>{% endif %}
+  <fieldset{% if not forloop.first %} class="optional"{% endif %}>
+    <legend>Document {{ forloop.counter }}{% if not forloop.first %} <span class="muted">(optional)</span>{% endif %}</legend>
+    {{ form.non_field_errors }}
+    <label for="{{ form.file.id_for_label }}">{{ form.file.label }}</label>
+    {{ form.file }}{{ form.file.errors }}
+    <label for="{{ form.rate.id_for_label }}">Paper and color</label>
+    {{ form.rate }}{{ form.rate.errors }}
+    <div class="field-row">
+      <div>
+        <label for="{{ form.copies.id_for_label }}">{{ form.copies.label }}</label>
+        {{ form.copies }}{{ form.copies.errors }}
+      </div>
+      <div>
+        <label for="{{ form.binding_type.id_for_label }}">{{ form.binding_type.label }}</label>
+        {{ form.binding_type }}{{ form.binding_type.errors }}
+      </div>
+    </div>
+  </fieldset>
+  {% if forloop.last and not forloop.first %}</details>{% endif %}
+  {% endfor %}
+  <fieldset>
+    <legend>Notes for the shop <span class="muted">(optional)</span></legend>
+    <label for="{{ notes_form.notes.id_for_label }}" class="visually-hidden">{{ notes_form.notes.label }}</label>
+    {{ notes_form.notes }}{{ notes_form.notes.errors }}
+  </fieldset>
+  <div class="submit-bar"><button type="submit" class="block">Review order</button></div>
+</form>
+
+<h2>Price per page</h2>
+<table>
+  <thead><tr><th>Paper</th><th>Color</th><th class="num">Price</th></tr></thead>
+  <tbody>
+  {% for r in rates %}
+    <tr>
+      <td>{{ r.get_paper_size_display }}</td>
+      <td>{{ r.get_color_mode_display }}</td>
+      <td class="num">₱{{ r.price_per_page }}</td>
+    </tr>
+  {% empty %}<tr><td colspan="3" class="muted">No print rates are available.</td></tr>{% endfor %}
+  </tbody>
+</table>
+{% endblock %}
