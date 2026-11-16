@@ -12,3 +12,4 @@ private_uploads/
 
 # local working notes, not part of the app
 PLAN.md
+.claude/
