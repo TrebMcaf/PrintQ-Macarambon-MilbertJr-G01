@@ -1,64 +1,111 @@
 # PrintQ
 
-Pre-order and queue system for a campus print shop (Django 5.2).
+PrintQ is a pre-order and queue system for a campus print shop. Students upload their PDFs, choose
+the paper size, color, copies and binding, and get a tracking code. The shop sees every order in a
+queue and updates its status until it is ready for pickup. Payment is still done at the counter.
+
+Built with Django 5.2 and PostgreSQL (Supabase) for CSIT327 Information Management 2.
+
+## Features
+
+- Student sign up, login and logout, with passwords hashed by Django
+- Three roles, each with its own dashboard: Student, Operator and Admin
+- Profile page where users can update their name, email, contact number and password
+- PDF upload (up to 5 files, 25 MB each) with page counting and a price review before placing the order
+- Order tracking by code, and cancelling while the order is still pending
+- Operator queue: Pending, Printing, Ready, Completed, with every status change logged
+- Admin pages for managing students, operators, shop details and print rates
+
+## Roles
+
+| Role | What they can do |
+|---|---|
+| Student | Place orders, track and cancel their own orders, edit their profile |
+| Operator | Work through the queue, download files, update order status |
+| Admin | Oversee students and operators, add operator accounts, edit shop details and print rates |
+
+Students register through the sign up page. Operator accounts are created by an admin. The first
+operator and admin accounts are created by the `seed` command using the emails and passwords in `.env`.
 
 ## Setup
-1. `pip install -r requirements.txt` (a virtualenv is recommended).
-2. Copy `.env.example` to `.env` and fill in values (see **Connecting to Supabase**).
-3. `python manage.py migrate`
-4. `python manage.py seed` (shop, rate matrix, operator account; safe to re-run)
-5. `python manage.py runserver`
+
+1. Create and activate a virtual environment:
+   ```
+   python -m venv venv
+   venv\Scripts\activate
+   ```
+2. Install the requirements:
+   ```
+   pip install -r requirements.txt
+   ```
+3. Copy `.env.example` to `.env` and fill in the values (see the Supabase section below).
+4. Create the tables and the starting data:
+   ```
+   python manage.py migrate
+   python manage.py seed
+   ```
+5. Run the server and open http://localhost:8000:
+   ```
+   python manage.py runserver
+   ```
 
 ## Connecting to Supabase
-The final setup uses Supabase PostgreSQL. SQLite is only a fallback while `DJANGO_DEBUG=1`, and
-the app refuses to start without `DATABASE_URL` when debug is off.
 
-1. Create a project at supabase.com and note the **database password** you set.
-2. In the project, click **Connect** → copy the **Session pooler** URI
-   (`postgresql://postgres.<ref>:[YOUR-PASSWORD]@aws-0-<region>.pooler.supabase.com:5432/postgres`).
-   Use the session pooler unless your network has IPv6; the direct `db.<ref>.supabase.co` host is IPv6-only.
-3. Put it in `.env` as `DATABASE_URL=...` with your real password. URL-encode special characters
-   in the password (e.g. `@` → `%40`, `#` → `%23`). Never commit `.env`.
-4. Run:
+1. Create a project on supabase.com and keep the database password you set.
+2. In the project, click Connect and copy the Session pooler connection string.
+3. Paste it into `.env` as `DATABASE_URL=...` and replace the password placeholder with your real
+   password. If the password has symbols like `@` or `#`, write them as `%40` and `%23`.
+4. Check the connection, then create the tables:
    ```
-   python manage.py db_status     # shows host + "Connected: PostgreSQL ..."
-   python manage.py migrate       # creates users, shops, print_rates, orders, order_items, order_status_logs
+   python manage.py db_status
+   python manage.py migrate
    python manage.py seed
-   python manage.py db_status     # should now say "PrintQ tables present: 6/6"
    ```
-5. The tables appear in Supabase → **Table Editor**, with the SDD's CHECK / UNIQUE / FK constraints.
 
-Notes: the transaction pooler (port 6543) also works — settings switch off persistent connections,
-server-side cursors and prepared statements for it automatically. SSL is always required.
+`db_status` shows which database the app is connected to and whether all six PrintQ tables exist.
+If `DATABASE_URL` is empty, the app uses a local SQLite file, but only while `DJANGO_DEBUG=1`.
 
-## Tests
-`python manage.py test` — uses SQLite when `DATABASE_URL` is unset. To run the suite against Supabase,
-Django needs permission to create a temporary `test_postgres` database; use the session pooler URL.
+Never commit `.env`. It is already listed in `.gitignore`.
+
+## File storage
+
+If `SUPABASE_URL` and `SUPABASE_SERVICE_KEY` are set in `.env`, uploaded PDFs are stored in a private
+Supabase Storage bucket. Otherwise they are saved in the local `private_uploads/` folder. In both cases
+only operators can download the files, and only through the app.
+
+## Running the tests
+
+```
+python manage.py test
+```
 
 ## Project structure
-- `config/` settings and root URLs (`home` redirects by role).
-- `accounts/` custom email-login `User`, role decorators, signup/login/logout.
-- `catalog/` `Shop`, `PrintRate`, `seed` command.
-- `orders/` models, `services.py` (all business logic), `storage.py` (local/Supabase file storage), `pdfutils.py` (PDF checks), views, tests.
-- `templates/`, `static/css/app.css` plain HTML/CSS, no JS frameworks.
 
-## Which layer enforces which SDD rule
-- **Database (CHECK / UNIQUE / FK RESTRICT):** BR-01 unique email, BR-02 role values, BR-03 unique tracking code, BR-04 status values, BR-05 total >= 0, BR-06 file size 0-25 MB, BR-07 copies >= 1, BR-08 pages >= 1, BR-10 price >= 0, BR-11 rates referenced by items cannot be deleted, BR-14 shop FK.
-- **Services (`orders/services.py`):** BR-09 price snapshot, BR-12 students cancel only their own PENDING orders, BR-13 status log on every change, state-machine transitions, operator-only advancing.
-- **Views/decorators:** role-based access (students vs operators), owner-only order visibility. Views never set `order.status` directly.
+```
+config/      settings and main URLs
+accounts/    users, roles, login, profile, admin pages
+catalog/     shop and print rates, seed and db_status commands
+orders/      orders, uploads, pricing, queue, dashboards
+templates/   HTML templates
+static/      CSS
+```
 
-## Storage
-- Uploaded PDFs go to Supabase Storage when `SUPABASE_URL` and `SUPABASE_SERVICE_KEY` are set. The bucket is private (`SUPABASE_BUCKET`), and operators get signed download links valid for `SIGNED_URL_TTL_SECONDS`.
-- Otherwise files are saved under `private_uploads/`. That folder is never served directly; only operators can download files, through the app.
-- Note: abandoned drafts can leave orphaned files. A purge command is planned for Phase 7.
+## Business rules
 
-## Roadmap
-0. Setup
-1. Schema
-2. Auth
-3. Upload + pricing
-4. Queue
-5. Tracking / cancel
-6. Search + daily report
-7. Rate editor + purge
-8. QA
+The rules from the SDD are enforced in two places:
+
+- In the database, with CHECK, UNIQUE and foreign key constraints: unique emails and tracking codes,
+  allowed roles and statuses, file size, copies, page count and prices.
+- In the code (`orders/services.py`): locking the price when an order is placed, allowing students to
+  cancel only pending orders, and saving a log entry for every status change.
+
+## Progress
+
+- [x] Project setup and database schema
+- [x] Account feature: registration, login and logout, role dashboards, user profile
+- [x] Admin role
+- [x] PDF upload, price review and order placement
+- [x] Order queue and tracking
+- [ ] Search and filters
+- [ ] Daily sales report
+- [ ] Clean-up of old uploaded files
