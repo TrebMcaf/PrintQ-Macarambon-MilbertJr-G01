@@ -28,6 +28,8 @@ except ImportError:
     pass
 
 FAILURES = []
+# Cloudflare blocks Python's default "Python-urllib" agent (HTTP 403), so identify ourselves.
+USER_AGENT = "PrintQ-smoke-test/1.0"
 
 
 class Client:
@@ -38,7 +40,7 @@ class Client:
 
     def request(self, path, data=None):
         body = urllib.parse.urlencode(data).encode() if data is not None else None
-        req = urllib.request.Request(self.base + path, data=body, headers={"Referer": self.base + "/"})
+        req = urllib.request.Request(self.base + path, data=body, headers={"Referer": self.base + "/", "User-Agent": USER_AGENT})
         try:
             with self.opener.open(req, timeout=15) as resp:
                 return resp.status, urllib.parse.urlparse(resp.geturl()).path, resp.read().decode("utf-8", "replace")
@@ -72,7 +74,7 @@ def expect(client, path, status=200, lands_on=None, contains=None, label=None):
 def wait_for_server(base, seconds=30):
     for _ in range(seconds * 2):
         try:
-            urllib.request.urlopen(base + "/accounts/login/", timeout=2)
+            urllib.request.urlopen(urllib.request.Request(base + "/accounts/login/", headers={"User-Agent": USER_AGENT}), timeout=5)
             return True
         except Exception:
             time.sleep(0.5)
