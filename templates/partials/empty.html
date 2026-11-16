@@ -1,0 +1,6 @@
+<div class="empty">
+  <h2>{{ title }}</h2>
+  <p class="text-muted">{{ text }}</p>
+  {% if steps %}{% include "partials/next_steps.html" %}{% endif %}
+  {% if cta_url %}<a class="btn btn-primary" href="{{ cta_url }}">{{ cta_label }}</a>{% endif %}
+</div>

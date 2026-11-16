@@ -1,0 +1,13 @@
+<div class="ticket">
+  <div class="ticket-main">
+    <div class="ticket-label">Tracking code</div>
+    <div class="ticket-code" id="code-{{ order.pk }}">{{ order.tracking_code }}</div>
+    <div class="ticket-meta">Placed {{ order.created_at|date:"M j, Y · g:i A" }}{% if order.shop %} · {{ order.shop.name }}{% endif %}</div>
+  </div>
+  <div class="ticket-stub">
+    <div class="ticket-label">Total</div>
+    <div class="ticket-amount">₱{{ order.total_amount }}</div>
+    <span class="badge status {{ order.status }} lg">{{ order.get_status_display }}</span>
+    <button type="button" class="btn btn-outline-secondary copy-btn" data-copy="#code-{{ order.pk }}">Copy code</button>
+  </div>
+</div>

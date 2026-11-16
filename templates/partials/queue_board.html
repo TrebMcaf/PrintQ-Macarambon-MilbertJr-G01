@@ -1,0 +1,39 @@
+<div class="row g-3">
+{% for g in groups %}
+  <section class="col-lg-4" aria-labelledby="queue-{{ g.status|lower }}">
+    <div class="queue-col">
+      <div class="queue-col-head">
+        <h2 id="queue-{{ g.status|lower }}">{{ g.label }}</h2>
+        <span class="count">{{ g.orders|length }}</span>
+      </div>
+      {% for o in g.orders %}
+      <div class="card queue-card">
+        <div class="card-body">
+          <a class="code" href="{% url 'orders:order_detail' o.pk %}">{{ o.tracking_code }}</a>
+          <div>{{ o.user.full_name }}</div>
+          <div class="files">{{ o.items.all|length }} file{{ o.items.all|length|pluralize }} · ₱{{ o.total_amount }}</div>
+          <div class="files">Placed {{ o.created_at|date:"M j, g:i A" }}</div>
+          {% if g.status == "PENDING" or g.status == "PRINTING" %}
+            <div class="d-grid gap-1 mt-2">
+            {% for item in o.items.all %}
+            <a class="btn btn-outline-secondary btn-sm text-start text-truncate" href="{% url 'orders:download_item' item.pk %}" aria-label="Download {{ item.file_name }}" title="{{ item.file_name }}">Download {{ item.file_name }}</a>
+            {% endfor %}
+            </div>
+          {% endif %}
+          {% for s in o.next_statuses %}
+            {% if s == "PRINTING" or s == "READY" or s == "COMPLETED" %}
+            <form method="post" action="{% url 'orders:advance' o.pk %}" class="mt-2">
+              {% csrf_token %}<input type="hidden" name="status" value="{{ s }}">
+              <button type="submit" class="btn btn-primary btn-sm w-100">{% if s == "PRINTING" %}Start printing{% elif s == "READY" %}Mark ready{% elif s == "COMPLETED" %}Mark completed{% endif %}</button>
+            </form>
+            {% endif %}
+          {% endfor %}
+        </div>
+      </div>
+      {% empty %}
+      <p class="queue-empty">Nothing here.</p>
+      {% endfor %}
+    </div>
+  </section>
+{% endfor %}
+</div>

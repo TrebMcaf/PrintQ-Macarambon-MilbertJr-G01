@@ -54,6 +54,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "catalog.context_processors.shop",
             ],
         },
     },
@@ -141,3 +142,8 @@ SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
 SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY", "")
 SUPABASE_BUCKET = os.environ.get("SUPABASE_BUCKET", "print-files")
 SIGNED_URL_TTL_SECONDS = 300
+
+# Bootstrap alert classes: Django "error" messages render as alert-danger.
+from django.contrib.messages import constants as message_constants  # noqa: E402
+
+MESSAGE_TAGS = {message_constants.ERROR: "danger"}

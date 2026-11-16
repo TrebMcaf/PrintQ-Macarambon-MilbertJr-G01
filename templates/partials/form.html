@@ -1,0 +1,3 @@
+{% if form.non_field_errors %}<div class="alert alert-danger" role="alert">{{ form.non_field_errors|join:" " }}</div>{% endif %}
+{% for hidden in form.hidden_fields %}{{ hidden }}{% endfor %}
+{% for field in form.visible_fields %}{% include "partials/field.html" with field=field %}{% endfor %}

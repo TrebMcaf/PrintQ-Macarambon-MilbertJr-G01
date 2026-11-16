@@ -1,0 +1,10 @@
+{% load ui %}{% with idx=status|step_index %}{% if idx == -1 %}
+<p class="steps-cancelled"><span class="badge status CANCELLED lg">Cancelled</span> This order was cancelled and will not be printed.</p>
+{% else %}
+<ol class="steps" aria-label="Order progress">
+  <li{% if idx > 0 or idx == 3 %} class="done"{% elif idx == 0 %} class="current" aria-current="step"{% endif %}>Waiting in line</li>
+  <li{% if idx > 1 or idx == 3 %} class="done"{% elif idx == 1 %} class="current" aria-current="step"{% endif %}>Being printed</li>
+  <li{% if idx > 2 or idx == 3 %} class="done"{% elif idx == 2 %} class="current" aria-current="step"{% endif %}>Ready for pickup</li>
+  <li{% if idx == 3 %} class="done"{% endif %}>Picked up</li>
+</ol>
+{% endif %}{% endwith %}
