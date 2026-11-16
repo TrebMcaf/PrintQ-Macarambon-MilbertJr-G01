@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Students{% endblock %}
+{% block content %}
+<h1>Students</h1>
+<form method="get" class="actions">
+  <label class="visually-hidden" for="q">Search students</label>
+  <input type="search" id="q" name="q" value="{{ q }}" placeholder="Name or email">
+  <button type="submit">Search</button>
+</form>
+<p class="muted">{{ total }} student{{ total|pluralize }}{% if q %} matching “{{ q }}”{% endif %}.</p>
+
+<table class="stack">
+  <thead><tr><th>Name</th><th>Email</th><th class="num">Orders</th><th class="num">Spent ₱</th><th>Joined</th><th>Status</th><th></th></tr></thead>
+  <tbody>
+  {% for s in page %}
+    <tr>
+      <td class="lead" data-label="Name"><a href="{% url 'admin_student_detail' s.pk %}">{{ s.full_name }}</a></td>
+      <td data-label="Email">{{ s.email }}</td>
+      <td class="num" data-label="Orders">{{ s.order_count }}</td>
+      <td class="num" data-label="Spent ₱">₱{{ s.order_total|floatformat:2 }}</td>
+      <td data-label="Joined">{{ s.created_at|date:"M j, Y" }}</td>
+      <td data-label="Status">{% if s.is_active %}<span class="badge READY">Active</span>{% else %}<span class="badge CANCELLED">Inactive</span>{% endif %}</td>
+      <td class="row-actions">
+        <form method="post" action="{% url 'admin_toggle_active' s.pk %}" class="inline">
+          {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+          {% if s.is_active %}<button type="submit" class="danger">Deactivate</button>{% else %}<button type="submit">Reactivate</button>{% endif %}
+        </form>
+      </td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="7" class="muted">{% if q %}No students match “{{ q }}”.{% else %}No students yet.{% endif %}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+{% if page.paginator.num_pages > 1 %}
+<p class="actions">
+  {% if page.has_previous %}<a href="?{% if q %}q={{ q|urlencode }}&amp;{% endif %}page={{ page.previous_page_number }}">Previous</a>{% endif %}
+  {% for n in page.paginator.page_range %}
+    {% if n == page.number %}<strong aria-current="page">{{ n }}</strong>{% else %}<a href="?{% if q %}q={{ q|urlencode }}&amp;{% endif %}page={{ n }}">{{ n }}</a>{% endif %}
+  {% endfor %}
+  {% if page.has_next %}<a href="?{% if q %}q={{ q|urlencode }}&amp;{% endif %}page={{ page.next_page_number }}">Next</a>{% endif %}
+</p>
+{% endif %}
+{% endblock %}
