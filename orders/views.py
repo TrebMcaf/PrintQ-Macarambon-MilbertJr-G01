@@ -1,0 +1,198 @@
+import os
+from decimal import Decimal
+
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from django.core.exceptions import PermissionDenied, SuspiciousFileOperation, ValidationError
+from django.http import FileResponse, Http404, HttpResponseBadRequest
+from django.shortcuts import get_object_or_404, redirect, render
+from django.utils.text import get_valid_filename
+from django.views.decorators.http import require_POST
+
+from accounts.decorators import operator_required, student_required
+from catalog.models import PrintRate
+
+from . import services, storage
+from .forms import DocumentFormSet, NotesForm
+from .models import BindingType, Order, OrderItem, Status
+from .services import ItemSpec
+
+DRAFT_KEY = "printq_draft"
+
+
+def _error_text(exc):
+    return " ".join(exc.messages) if isinstance(exc, ValidationError) else (str(exc) or "Not allowed.")
+
+
+def _safe_file_name(raw: str) -> str:
+    try:
+        name = get_valid_filename(os.path.basename(raw))
+    except SuspiciousFileOperation:
+        name = ""
+    if not name:
+        return "document.pdf"
+    stem, ext = os.path.splitext(name)
+    ext = ext or ".pdf"
+    return stem[: 255 - len(ext)] + ext
+
+
+def _draft_specs(draft) -> list[ItemSpec]:
+    return [ItemSpec(rate_id=i["rate_id"], file_name=i["file_name"], file_url=i["file_url"],
+                     file_size_mb=Decimal(i["file_size_mb"]), page_count=i["page_count"],
+                     copies=i["copies"], binding_type=i["binding_type"]) for i in draft["items"]]
+
+
+def _draft_paths(draft) -> list[str]:
+    return [i["file_url"] for i in draft["items"]]
+
+
+@student_required
+def my_orders(request):
+    orders = Order.objects.filter(user=request.user).order_by("-created_at")
+    return render(request, "orders/my_orders.html", {"orders": orders})
+
+
+@student_required
+def new_order(request):
+    if DRAFT_KEY in request.session:
+        return redirect("orders:confirm_order")
+    if request.method == "POST":
+        formset = DocumentFormSet(request.POST, request.FILES, prefix="docs")
+        notes_form = NotesForm(request.POST)
+        if formset.is_valid() and notes_form.is_valid():
+            items, uploaded = [], []
+            try:
+                for form in formset.filled_forms():
+                    f = form.cleaned_data["file"]
+                    path = storage.build_object_path(request.user.pk)
+                    uploaded.append(path)
+                    storage.upload_file(f, path)
+                    items.append({
+                        "rate_id": form.cleaned_data["rate"].pk,
+                        "file_name": _safe_file_name(f.name),
+                        "file_url": path,
+                        "file_size_mb": str(form.size_mb),
+                        "page_count": form.page_count,
+                        "copies": form.cleaned_data["copies"],
+                        "binding_type": form.cleaned_data["binding_type"],
+                    })
+            except (storage.StorageError, OSError):
+                storage.delete_files(uploaded)
+                messages.error(request, "Upload failed. Please try again.")
+            else:
+                request.session[DRAFT_KEY] = {"notes": notes_form.cleaned_data["notes"], "items": items}
+                return redirect("orders:confirm_order")
+    else:
+        formset = DocumentFormSet(prefix="docs")
+        notes_form = NotesForm()
+    rates = PrintRate.objects.filter(is_active=True)
+    return render(request, "orders/new_order.html", {"formset": formset, "notes_form": notes_form, "rates": rates})
+
+
+@student_required
+def confirm_order(request):
+    draft = request.session.get(DRAFT_KEY)
+    if not draft:
+        return redirect("orders:new_order")
+    specs = _draft_specs(draft)
+    if request.method == "POST":
+        action = request.POST.get("action")
+        if action == "discard":
+            request.session.pop(DRAFT_KEY, None)
+            storage.delete_files(_draft_paths(draft))
+            messages.info(request, "Draft discarded.")
+            return redirect("orders:new_order")
+        if action == "confirm":
+            request.session.pop(DRAFT_KEY, None)
+            try:
+                order = services.place_order(request.user, specs, draft["notes"])
+            except (ValidationError, PermissionDenied) as exc:
+                storage.delete_files(_draft_paths(draft))
+                messages.error(request, _error_text(exc))
+                return redirect("orders:new_order")
+            except Exception:
+                storage.delete_files(_draft_paths(draft))
+                raise
+            messages.success(request, f"Order {order.tracking_code} placed.")
+            return redirect("orders:order_detail", order_id=order.pk)
+        return HttpResponseBadRequest("Unknown action.")
+    try:
+        lines, total = services.quote_items(specs)
+    except ValidationError as exc:
+        request.session.pop(DRAFT_KEY, None)
+        storage.delete_files(_draft_paths(draft))
+        messages.error(request, _error_text(exc))
+        return redirect("orders:new_order")
+    for line in lines:
+        line.binding_label = BindingType(line.spec.binding_type).label
+    return render(request, "orders/confirm_order.html", {"lines": lines, "total": total, "notes": draft["notes"]})
+
+
+@operator_required
+def download_item(request, item_id):
+    item = get_object_or_404(OrderItem, pk=item_id)
+    backend = storage.get_backend()
+    try:
+        url = backend.signed_url(item.file_url, download_name=item.file_name)
+        if url:
+            return redirect(url)
+        return FileResponse(backend.open(item.file_url), as_attachment=True, filename=item.file_name,
+                            content_type="application/pdf")
+    except storage.StorageError:
+        raise Http404
+
+
+@login_required
+def order_detail(request, order_id):
+    order = get_object_or_404(Order.objects.select_related("user"), pk=order_id)
+    if request.user.is_student and order.user_id != request.user.pk:
+        raise Http404
+    return render(request, "orders/order_detail.html", {
+        "order": order,
+        "items": order.items.select_related("rate"),
+        "logs": order.status_logs.select_related("changed_by"),
+        "can_cancel": order.can_cancel and request.user.is_student and order.user_id == request.user.pk,
+    })
+
+
+@require_POST
+@student_required
+def cancel(request, order_id):
+    order = get_object_or_404(Order, pk=order_id, user=request.user)
+    try:
+        services.cancel_order(order.pk, request.user)
+        messages.success(request, f"Order {order.tracking_code} cancelled.")
+    except (ValidationError, PermissionDenied) as exc:
+        messages.error(request, _error_text(exc))
+    return redirect("orders:order_detail", order_id=order.pk)
+
+
+@operator_required
+def queue(request):
+    active = Order.objects.filter(status__in=[Status.PENDING, Status.PRINTING, Status.READY]) \
+        .select_related("user").order_by("created_at")
+    return render(request, "orders/queue.html", {"orders": active})
+
+
+@require_POST
+@operator_required
+def advance(request, order_id):
+    new_status = request.POST.get("status", "")
+    try:
+        if new_status not in Status.values:
+            raise ValidationError("Unknown status.")
+        order = services.transition_status(order_id, new_status, request.user)
+        messages.success(request, f"{order.tracking_code} is now {order.get_status_display()}.")
+    except Order.DoesNotExist:
+        raise Http404
+    except (ValidationError, PermissionDenied) as exc:
+        messages.error(request, _error_text(exc))
+    return redirect("orders:queue")
+
+
+def track(request):
+    code = request.GET.get("code", "").strip().upper()
+    order = None
+    if code:
+        order = Order.objects.filter(tracking_code=code).first()
+    return render(request, "orders/track.html", {"code": code, "order": order, "searched": bool(code)})

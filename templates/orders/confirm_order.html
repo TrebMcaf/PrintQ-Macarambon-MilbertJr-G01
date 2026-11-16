@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Review order{% endblock %}
+{% block content %}
+<h1>Review your order</h1>
+
+<table class="stack">
+  <thead>
+    <tr>
+      <th>File</th><th>Paper / color</th><th class="num">Pages</th><th class="num">Copies</th>
+      <th>Binding</th><th class="num">Unit price</th><th class="num">Subtotal</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for l in lines %}
+    <tr>
+      <td class="lead" data-label="File">{{ l.spec.file_name }}</td>
+      <td data-label="Paper / color">{{ l.rate.get_paper_size_display }} / {{ l.rate.get_color_mode_display }}</td>
+      <td class="num" data-label="Pages">{{ l.spec.page_count }}</td>
+      <td class="num" data-label="Copies">{{ l.spec.copies }}</td>
+      <td data-label="Binding">{{ l.binding_label }}</td>
+      <td class="num" data-label="Unit price">₱{{ l.unit_price }}</td>
+      <td class="num" data-label="Subtotal">₱{{ l.subtotal }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+  <tfoot><tr><th colspan="6" class="num">Total</th><td class="num total" data-label="Total">₱{{ total }}</td></tr></tfoot>
+</table>
+
+{% if notes %}<p>Notes: {{ notes }}</p>{% endif %}
+<p class="muted">Prices are final when you confirm. Binding is free. Pay at the counter when you pick up.</p>
+
+<form method="post" class="actions">
+  {% csrf_token %}
+  <button type="submit" name="action" value="confirm">Place order</button>
+  <button type="submit" name="action" value="discard" class="danger">Discard</button>
+</form>
+{% endblock %}

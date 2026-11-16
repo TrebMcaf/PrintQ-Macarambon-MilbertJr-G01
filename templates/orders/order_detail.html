@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Order {{ order.tracking_code }}{% endblock %}
+{% block content %}
+<h1>Order {{ order.tracking_code }}</h1>
+<div class="status-line">
+  <span class="badge lg {{ order.status }}">{{ order.get_status_display }}</span>
+  {% if order.status == "READY" and user.is_student %}<span>Ready at the counter. Pay ₱{{ order.total_amount }} on pickup.</span>{% endif %}
+</div>
+<p class="muted">Placed {{ order.created_at|date:"M j, Y H:i" }}{% if not user.is_student %} by {{ order.user.full_name }}{% endif %}</p>
+{% if order.notes %}<p>Notes: {{ order.notes }}</p>{% endif %}
+
+<h2>Items</h2>
+<table class="stack">
+  <thead><tr><th>File</th><th>Paper / color</th><th class="num">Pages</th><th class="num">Copies</th><th>Binding</th><th class="num">Unit price</th><th class="num">Subtotal</th></tr></thead>
+  <tbody>
+  {% for i in items %}
+    <tr>
+      <td class="lead" data-label="File">{{ i.file_name }}{% if user.is_operator %} <a href="{% url 'orders:download_item' i.pk %}">Download</a>{% endif %}</td>
+      <td data-label="Paper / color">{{ i.rate.get_paper_size_display }} / {{ i.rate.get_color_mode_display }}</td>
+      <td class="num" data-label="Pages">{{ i.page_count }}</td>
+      <td class="num" data-label="Copies">{{ i.copies }}</td>
+      <td data-label="Binding">{{ i.get_binding_type_display }}</td>
+      <td class="num" data-label="Unit price">₱{{ i.unit_price }}</td>
+      <td class="num" data-label="Subtotal">₱{{ i.subtotal }}</td>
+    </tr>
+  {% empty %}<tr><td colspan="7" class="muted">No items.</td></tr>{% endfor %}
+  </tbody>
+  <tfoot><tr><th colspan="6" class="num">Total</th><td class="num total" data-label="Total">₱{{ order.total_amount }}</td></tr></tfoot>
+</table>
+
+{% if can_cancel %}
+<form method="post" action="{% url 'orders:cancel' order.pk %}" class="actions">
+  {% csrf_token %}<button type="submit" class="danger">Cancel order</button>
+  <span class="muted">You can cancel until the shop starts printing.</span>
+</form>
+{% endif %}
+
+<h2>Status history</h2>
+<table class="stack">
+  <thead><tr><th>When</th><th>From</th><th>To</th><th>By</th></tr></thead>
+  <tbody>
+  {% for l in logs %}
+    <tr>
+      <td class="lead" data-label="When">{{ l.changed_at|date:"M j, Y H:i" }}</td>
+      <td data-label="From">{% if l.previous_status %}{{ l.get_previous_status_display }}{% else %}—{% endif %}</td>
+      <td data-label="To"><span class="badge {{ l.new_status }}">{{ l.get_new_status_display }}</span></td>
+      <td data-label="By">{{ l.changed_by.full_name }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
