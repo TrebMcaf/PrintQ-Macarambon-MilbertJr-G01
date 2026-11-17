@@ -22,8 +22,7 @@
           <ul class="navbar-nav me-auto">
             {% if user.is_admin %}
               <li class="nav-item"><a class="nav-link{% if n == 'admin_dashboard' %} active{% endif %}" href="{% url 'home' %}"{% if n == 'admin_dashboard' %} aria-current="page"{% endif %}>Overview</a></li>
-              <li class="nav-item"><a class="nav-link{% if n == 'admin_students' or n == 'admin_student_detail' %} active{% endif %}" href="{% url 'admin_students' %}"{% if n == 'admin_students' or n == 'admin_student_detail' %} aria-current="page"{% endif %}>Students</a></li>
-              <li class="nav-item"><a class="nav-link{% if n == 'admin_operators' %} active{% endif %}" href="{% url 'admin_operators' %}"{% if n == 'admin_operators' %} aria-current="page"{% endif %}>Operators</a></li>
+              <li class="nav-item"><a class="nav-link{% if n == 'admin_users' or n == 'admin_user_detail' or n == 'admin_user_edit' or n == 'admin_user_create' or n == 'admin_user_password' %} active{% endif %}" href="{% url 'admin_users' %}"{% if n == 'admin_users' or n == 'admin_user_detail' or n == 'admin_user_edit' or n == 'admin_user_create' or n == 'admin_user_password' %} aria-current="page"{% endif %}>Users</a></li>
               <li class="nav-item"><a class="nav-link{% if n == 'admin_shop' %} active{% endif %}" href="{% url 'admin_shop' %}"{% if n == 'admin_shop' %} aria-current="page"{% endif %}>Shop &amp; rates</a></li>
             {% elif user.is_operator %}
               <li class="nav-item"><a class="nav-link{% if n == 'operator_dashboard' or n == 'queue' %} active{% endif %}" href="{% url 'home' %}"{% if n == 'operator_dashboard' or n == 'queue' %} aria-current="page"{% endif %}>Queue</a></li>

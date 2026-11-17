@@ -256,3 +256,10 @@ input[type=file].form-control::file-selector-button { font-weight: 600; color: v
 @media (prefers-reduced-motion: no-preference) { #live-region { transition: opacity .2s ease-out; } }
 .live-bar:not([hidden]) { display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
 .live-bar[hidden] { display: none !important; }
+
+/* Role and flag badges (user masterlist and detail) */
+.badge.role { font-weight: 600; font-size: .78rem; padding: .35em .7em; border-radius: 999px; }
+.badge.role.STUDENT { background: #ecebe6; color: #3d424a; }
+.badge.role.OPERATOR { background: #e2eaf7; color: #1b3d70; }
+.badge.role.ADMIN { background: #efe3f6; color: #5a2a78; }
+.badge.flag { background: #fff; color: var(--pq-muted); border: 1px solid var(--pq-line-strong); font-weight: 600; font-size: .72rem; border-radius: 999px; padding: .25em .6em; }

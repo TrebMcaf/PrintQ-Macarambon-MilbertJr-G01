@@ -3,11 +3,13 @@ import re
 from django import forms
 from django.contrib.auth import password_validation
 from django.contrib.auth.forms import AuthenticationForm
+from django.core.exceptions import ValidationError
 from django.forms import modelformset_factory
 
 from catalog.models import PrintRate, Shop
 
 from .models import Role, User
+from .services import check_account_change, is_locked
 
 
 class SignupForm(forms.ModelForm):
@@ -75,13 +77,42 @@ class ProfileForm(forms.ModelForm):
         return phone or None
 
 
-class OperatorCreateForm(SignupForm):
-    """Admin-only: creates an operator account. The role is forced in save()."""
+class AdminUserForm(ProfileForm):
+    """Admin edit of any account. Superuser role/status are locked (rule 1 in services)."""
+
+    class Meta(ProfileForm.Meta):
+        fields = ["full_name", "email", "phone_number", "role", "is_active"]
+        labels = {**ProfileForm.Meta.labels, "role": "Role", "is_active": "Active (can log in)"}
+
+    def __init__(self, *args, actor, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.actor = actor
+        if is_locked(self.instance):
+            self.fields["role"].disabled = True
+            self.fields["is_active"].disabled = True
+            self.fields["role"].help_text = "Superuser: manage in Django admin."
+
+    def clean(self):
+        cd = super().clean()
+        role, active = cd.get("role"), cd.get("is_active")
+        # Inside clean() self.instance still holds the ORIGINAL values (construct_instance runs later).
+        if self.instance.pk and role is not None and active is not None:
+            try:
+                check_account_change(self.actor, self.instance, role, active)
+            except ValidationError as exc:
+                self.add_error(None, exc)
+        return cd
+
+
+class AdminUserCreateForm(SignupForm):
+    """Admin-only: creates a user of any role. New users are active."""
+
+    role = forms.ChoiceField(choices=Role.choices, initial=Role.STUDENT)
+    field_order = ["full_name", "email", "phone_number", "role", "password1", "password2"]
 
     def save(self, commit=True):
         user = super().save(commit=False)
-        user.role = Role.OPERATOR
-        user.is_staff = False
+        user.role = self.cleaned_data["role"]
         if commit:
             user.save()
         return user

@@ -114,7 +114,7 @@ def main():
     if admin_pw:
         print("Admin")
         a = login(base, admin_email, admin_pw, "/manage/")
-        for p in ("/manage/students/", "/manage/operators/", "/manage/shop/", "/accounts/profile/"):
+        for p in ("/manage/users/", "/manage/users/?role=OPERATOR", "/manage/shop/", "/accounts/profile/"):
             expect(a, p)
         expect(a, "/orders/queue/", status=403, label="admin blocked from operator queue (403)")
     else:

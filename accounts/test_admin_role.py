@@ -3,18 +3,21 @@ import os
 from decimal import Decimal
 from unittest import mock
 
+from django.core.exceptions import ValidationError
 from django.core.management import call_command
 from django.db import IntegrityError, transaction
 from django.test import TestCase
 from django.urls import reverse
 
 from accounts.models import Role, User
+from accounts.services import apply_account_change, check_account_change
 from catalog.models import ColorMode, PaperSize, PrintRate, Shop
 from orders import services
 from orders.models import Status
 from orders.services import ItemSpec
 
 PW = "Pw-123456!"
+NEW_PW = "Fresh-Pass-4321"
 
 
 class AdminRoleBase(TestCase):
@@ -35,9 +38,21 @@ class AdminRoleBase(TestCase):
             file_size_mb=Decimal("1.00"), page_count=pages, copies=1)])
 
     def page_urls(self):
-        return [reverse("admin_dashboard"), reverse("admin_students"),
-                reverse("admin_student_detail", args=[self.alice.pk]),
-                reverse("admin_operators"), reverse("admin_shop")]
+        return [reverse("admin_dashboard"), reverse("admin_users"), reverse("admin_user_create"),
+                reverse("admin_user_detail", args=[self.alice.pk]),
+                reverse("admin_user_edit", args=[self.alice.pk]),
+                reverse("admin_user_password", args=[self.alice.pk]),
+                reverse("admin_shop")]
+
+    def edit_data(self, user, **over):
+        data = {"full_name": user.full_name, "email": user.email, "phone_number": user.phone_number or "",
+                "role": user.role, "is_active": "on" if user.is_active else ""}
+        data.update(over)
+        return data
+
+    def edit(self, user, follow=False, **over):
+        return self.client.post(reverse("admin_user_edit", args=[user.pk]), self.edit_data(user, **over),
+                                follow=follow)
 
 
 class RoleModelTests(AdminRoleBase):
@@ -80,8 +95,8 @@ class AccessTests(AdminRoleBase):
 
     def test_nav_for_admin(self):
         self.client.force_login(self.admin)
-        resp = self.client.get(reverse("admin_students"))
-        self.assertContains(resp, 'href="%s" aria-current="page"' % reverse("admin_students"))
+        resp = self.client.get(reverse("admin_users"))
+        self.assertContains(resp, 'href="%s" aria-current="page"' % reverse("admin_users"))
         self.assertNotContains(resp, "New order")
         self.assertNotContains(resp, ">Queue<")
 
@@ -97,6 +112,7 @@ class DashboardTests(AdminRoleBase):
         ctx = self.client.get(reverse("admin_dashboard")).context
         self.assertEqual(ctx["student_count"], 2)
         self.assertEqual(ctx["operator_count"], 1)
+        self.assertEqual(ctx["admin_count"], 1)
         self.assertEqual(ctx["orders_total"], 2)
         self.assertEqual(ctx["active_orders"], 1)
         self.assertEqual(ctx["orders_today"], 2)
@@ -105,57 +121,309 @@ class DashboardTests(AdminRoleBase):
         self.assertEqual(len(ctx["recent_orders"]), 2)
         self.assertEqual(ctx["recent_orders"][0].user.pk, self.bob.pk)  # newest first, user preloaded
 
+    def test_admin_count_ignores_inactive_admins(self):
+        User.objects.create_user("a2@x.test", PW, full_name="A2", role=Role.ADMIN, is_active=False)
+        self.client.force_login(self.admin)
+        self.assertEqual(self.client.get(reverse("admin_dashboard")).context["admin_count"], 1)
+
     def test_revenue_default_zero(self):
         self.client.force_login(self.admin)
         self.assertEqual(self.client.get(reverse("admin_dashboard")).context["revenue_total"], Decimal("0.00"))
 
 
-class StudentTests(AdminRoleBase):
+class UserListTests(AdminRoleBase):
+    def test_tab_counts(self):
+        self.client.force_login(self.admin)
+        counts = self.client.get(reverse("admin_users")).context["role_counts"]
+        self.assertEqual(counts, {"ALL": 4, "STUDENT": 2, "OPERATOR": 1, "ADMIN": 1})
+
+    def test_role_filter_keeps_counts(self):
+        self.client.force_login(self.admin)
+        resp = self.client.get(reverse("admin_users"), {"role": "STUDENT"})
+        pks = {u.pk for u in resp.context["page"]}
+        self.assertEqual(pks, {self.alice.pk, self.bob.pk})
+        self.assertEqual(resp.context["role_counts"]["ALL"], 4)
+        self.assertEqual(self.client.get(reverse("admin_users"), {"role": "BOGUS"}).context["role"], "")
+
+    def test_status_filter(self):
+        self.bob.is_active = False
+        self.bob.save()
+        self.client.force_login(self.admin)
+        inactive = self.client.get(reverse("admin_users"), {"status": "inactive"})
+        self.assertEqual([u.pk for u in inactive.context["page"]], [self.bob.pk])
+        self.assertEqual(inactive.context["role_counts"]["ALL"], 1)
+        active = self.client.get(reverse("admin_users"), {"status": "active"})
+        self.assertNotIn(self.bob.pk, [u.pk for u in active.context["page"]])
+
     def test_search_by_name_and_email(self):
         self.client.force_login(self.admin)
-        resp = self.client.get(reverse("admin_students"), {"q": "alice"})
+        resp = self.client.get(reverse("admin_users"), {"q": "alice"})
         self.assertContains(resp, "Alice Cruz")
         self.assertNotContains(resp, "Bob Reyes")
-        resp = self.client.get(reverse("admin_students"), {"q": "SCHOOL.test"})
+        resp = self.client.get(reverse("admin_users"), {"q": "SCHOOL.test"})
         self.assertContains(resp, "Bob Reyes")
         self.assertNotContains(resp, "Alice Cruz")
-        resp = self.client.get(reverse("admin_students"), {"q": "zzz"})
-        self.assertContains(resp, "No students match")
+        resp = self.client.get(reverse("admin_users"), {"q": "zzz"})
+        self.assertContains(resp, "No users match these filters.")
+
+    def test_pagination_preserves_filters(self):
+        for i in range(26):
+            User.objects.create_user(f"pg{i:02d}@x.test", PW, full_name=f"Pg Student {i:02d}")
+        self.client.force_login(self.admin)
+        resp = self.client.get(reverse("admin_users"), {"role": "STUDENT", "q": "Pg", "page": 2})
+        self.assertEqual(resp.context["page"].number, 2)
+        self.assertEqual(len(resp.context["page"].object_list), 1)
+        self.assertContains(resp, "page=1&amp;role=STUDENT&amp;q=Pg")
 
     def test_order_aggregates(self):
         self.place(self.alice)
         self.place(self.alice, pages=10)
         self.client.force_login(self.admin)
-        rows = {s.pk: s for s in self.client.get(reverse("admin_students")).context["page"]}
+        rows = {u.pk: u for u in self.client.get(reverse("admin_users")).context["page"]}
         self.assertEqual(rows[self.alice.pk].order_count, 2)
         self.assertEqual(rows[self.alice.pk].order_total, Decimal("30.00"))
         self.assertEqual(rows[self.bob.pk].order_count, 0)
         self.assertEqual(rows[self.bob.pk].order_total, Decimal("0"))
 
-    def test_detail_lists_orders_and_404_for_operator(self):
-        order = self.place(self.alice)
+    def test_legacy_students_redirect(self):
+        self.client.force_login(self.admin)
+        resp = self.client.get(reverse("admin_students"), {"q": "x"})
+        self.assertRedirects(resp, "/manage/users/?role=STUDENT&q=x", fetch_redirect_response=False)
+        resp = self.client.get(reverse("admin_students"))
+        self.assertRedirects(resp, "/manage/users/?role=STUDENT", fetch_redirect_response=False)
+
+    def test_legacy_operators_redirect(self):
+        self.client.force_login(self.admin)
+        resp = self.client.get(reverse("admin_operators"))
+        self.assertRedirects(resp, "/manage/users/?role=OPERATOR", fetch_redirect_response=False)
+
+    def test_legacy_student_detail_redirect(self):
         self.client.force_login(self.admin)
         resp = self.client.get(reverse("admin_student_detail", args=[self.alice.pk]))
+        self.assertRedirects(resp, reverse("admin_user_detail", args=[self.alice.pk]),
+                             fetch_redirect_response=False)
+
+
+class UserDetailTests(AdminRoleBase):
+    def test_detail_lists_orders_for_any_role(self):
+        order = self.place(self.alice)
+        self.client.force_login(self.admin)
+        resp = self.client.get(reverse("admin_user_detail", args=[self.alice.pk]))
         self.assertContains(resp, order.tracking_code)
-        self.assertEqual(self.client.get(reverse("admin_student_detail", args=[self.operator.pk])).status_code, 404)
-        self.assertEqual(self.client.get(reverse("admin_student_detail", args=[self.admin.pk])).status_code, 404)
+        self.assertEqual(self.client.get(reverse("admin_user_detail", args=[self.operator.pk])).status_code, 200)
+        self.assertEqual(self.client.get(reverse("admin_user_detail", args=[self.admin.pk])).status_code, 200)
+
+    def test_detail_404_for_missing_user(self):
+        self.client.force_login(self.admin)
+        self.assertEqual(self.client.get(reverse("admin_user_detail", args=[999999])).status_code, 404)
+
+
+class UserCreateTests(AdminRoleBase):
+    data = {"email": "newuser@x.test", "full_name": "New User", "phone_number": "",
+            "password1": "Str0ng-pass-99", "password2": "Str0ng-pass-99"}
+
+    def create(self, role, **over):
+        return self.client.post(reverse("admin_user_create"), {**self.data, "role": role, **over})
+
+    def test_create_any_role(self):
+        self.client.force_login(self.admin)
+        for role in (Role.STUDENT, Role.OPERATOR, Role.ADMIN):
+            email = f"new-{role.lower()}@x.test"
+            resp = self.create(role, email=email)
+            user = User.objects.get(email=email)
+            self.assertRedirects(resp, reverse("admin_user_detail", args=[user.pk]))
+            self.assertEqual(user.role, role)
+            self.assertTrue(user.is_active)
+            self.assertFalse(user.is_superuser)
+
+    def test_password_hashed(self):
+        self.client.force_login(self.admin)
+        self.create(Role.OPERATOR)
+        user = User.objects.get(email="newuser@x.test")
+        self.assertTrue(user.check_password("Str0ng-pass-99"))
+        self.assertNotEqual(user.password, "Str0ng-pass-99")
+
+    def test_duplicate_email_rejected(self):
+        self.client.force_login(self.admin)
+        resp = self.create(Role.STUDENT, email="ALICE@x.test")
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "already exists")
+        self.assertEqual(User.objects.filter(email__iexact="alice@x.test").count(), 1)
+
+    def test_password_mismatch(self):
+        self.client.force_login(self.admin)
+        resp = self.create(Role.STUDENT, password2="different-1")
+        self.assertContains(resp, "Passwords do not match.")
+        self.assertFalse(User.objects.filter(email="newuser@x.test").exists())
+
+    def test_get_renders(self):
+        self.client.force_login(self.admin)
+        self.assertEqual(self.client.get(reverse("admin_user_create")).status_code, 200)
+
+
+class UserEditTests(AdminRoleBase):
+    def test_student_to_operator_then_operator_dashboard(self):
+        self.client.force_login(self.admin)
+        resp = self.edit(self.alice, role=Role.OPERATOR)
+        self.assertRedirects(resp, reverse("admin_user_detail", args=[self.alice.pk]))
+        self.alice.refresh_from_db()
+        self.assertEqual(self.alice.role, Role.OPERATOR)
+        self.client.force_login(self.alice)
+        self.assertRedirects(self.client.get(reverse("home")), reverse("operator_dashboard"))
+
+    def test_operator_to_admin(self):
+        self.client.force_login(self.admin)
+        self.edit(self.operator, role=Role.ADMIN)
+        self.operator.refresh_from_db()
+        self.assertEqual(self.operator.role, Role.ADMIN)
+
+    def test_edit_name_email_phone(self):
+        self.client.force_login(self.admin)
+        resp = self.edit(self.alice, full_name="Alice Reyes", email="alice.new@x.test", phone_number="0917 123-4567")
+        self.assertRedirects(resp, reverse("admin_user_detail", args=[self.alice.pk]))
+        self.alice.refresh_from_db()
+        self.assertEqual(self.alice.full_name, "Alice Reyes")
+        self.assertEqual(self.alice.email, "alice.new@x.test")
+        self.assertEqual(self.alice.phone_number, "0917 123-4567")
+
+    def test_duplicate_email_rejected(self):
+        self.client.force_login(self.admin)
+        resp = self.edit(self.alice, email="BOB@school.test")
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "already exists")
+        self.alice.refresh_from_db()
+        self.assertEqual(self.alice.email, "alice@x.test")
+
+    def test_bad_phone_rejected(self):
+        self.client.force_login(self.admin)
+        resp = self.edit(self.alice, phone_number="abc")
+        self.assertContains(resp, "Enter a valid contact number.")
+
+    def test_superuser_role_post_is_ignored(self):
+        su = User.objects.create_superuser("su@x.test", PW, full_name="Su")
+        self.client.force_login(self.admin)
+        self.edit(su, role=Role.STUDENT, is_active="")
+        su.refresh_from_db()
+        self.assertEqual(su.role, Role.ADMIN)
+        self.assertTrue(su.is_active)
+
+    def test_superuser_name_edit_saves_even_when_inactive(self):
+        su = User.objects.create_superuser("su@x.test", PW, full_name="Su")
+        User.objects.filter(pk=su.pk).update(is_active=False)
+        su.refresh_from_db()
+        self.client.force_login(self.admin)
+        self.edit(su, full_name="Renamed Su")
+        su.refresh_from_db()
+        self.assertEqual(su.full_name, "Renamed Su")
+        self.assertFalse(su.is_active)
+        self.assertEqual(su.role, Role.ADMIN)
+
+    def test_self_demote_with_another_active_admin(self):
+        User.objects.create_user("a2@x.test", PW, full_name="A2", role=Role.ADMIN)
+        self.client.force_login(self.admin)
+        resp = self.edit(self.admin, follow=True, role=Role.STUDENT)
+        self.assertEqual(resp.redirect_chain[0][0], reverse("home"))
+        self.assertContains(resp, "You are no longer an admin.")
+        self.admin.refresh_from_db()
+        self.assertEqual(self.admin.role, Role.STUDENT)
+
+    def test_self_demote_as_only_active_admin_blocked(self):
+        self.client.force_login(self.admin)
+        resp = self.edit(self.admin, role=Role.STUDENT)
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "PrintQ needs at least one active admin.")
+        self.admin.refresh_from_db()
+        self.assertEqual(self.admin.role, Role.ADMIN)
+        self.assertTrue(self.admin.is_active)
+
+    def test_self_deactivate_blocked(self):
+        User.objects.create_user("a2@x.test", PW, full_name="A2", role=Role.ADMIN)
+        self.client.force_login(self.admin)
+        resp = self.edit(self.admin, is_active="")
+        self.assertContains(resp, "deactivate your own account")
+        self.admin.refresh_from_db()
+        self.assertTrue(self.admin.is_active)
+
+    def test_last_admin_guard_applies_to_service_layer(self):
+        # The UI can only reach rule 3 through a self-change (rule 2 fires first for deactivation),
+        # so the rule is exercised directly against the service with a non-admin actor.
+        with self.assertRaisesMessage(ValidationError, "PrintQ needs at least one active admin."):
+            check_account_change(self.operator, self.admin, Role.STUDENT, True)
+        with self.assertRaisesMessage(ValidationError, "PrintQ needs at least one active admin."):
+            apply_account_change(self.operator, self.admin.pk, role=Role.ADMIN, is_active=False)
+        self.admin.refresh_from_db()
+        self.assertTrue(self.admin.is_active)
+
+    def test_get_renders(self):
+        self.client.force_login(self.admin)
+        self.assertEqual(self.client.get(reverse("admin_user_edit", args=[self.alice.pk])).status_code, 200)
+
+
+class UserPasswordTests(AdminRoleBase):
+    def test_admin_sets_student_password(self):
+        self.client.force_login(self.admin)
+        resp = self.client.post(reverse("admin_user_password", args=[self.alice.pk]),
+                                {"new_password1": NEW_PW, "new_password2": NEW_PW})
+        self.assertRedirects(resp, reverse("admin_user_detail", args=[self.alice.pk]))
+        self.alice.refresh_from_db()
+        self.assertTrue(self.alice.check_password(NEW_PW))
+        self.assertFalse(self.alice.check_password(PW))
+
+    def test_self_reset_keeps_session(self):
+        self.client.force_login(self.admin)
+        self.client.post(reverse("admin_user_password", args=[self.admin.pk]),
+                         {"new_password1": NEW_PW, "new_password2": NEW_PW})
+        self.admin.refresh_from_db()
+        self.assertTrue(self.admin.check_password(NEW_PW))
+        self.assertEqual(self.client.get(reverse("admin_dashboard")).status_code, 200)
+
+    def test_superuser_password_blocked_for_other_admin(self):
+        su = User.objects.create_superuser("su@x.test", PW, full_name="Su")
+        self.client.force_login(self.admin)
+        url = reverse("admin_user_password", args=[su.pk])
+        self.assertEqual(self.client.get(url).status_code, 403)
+        self.assertEqual(self.client.post(url, {"new_password1": NEW_PW, "new_password2": NEW_PW}).status_code, 403)
+        su.refresh_from_db()
+        self.assertTrue(su.check_password(PW))
+
+    def test_superuser_can_reset_own_password(self):
+        su = User.objects.create_superuser("su@x.test", PW, full_name="Su")
+        self.client.force_login(su)
+        resp = self.client.post(reverse("admin_user_password", args=[su.pk]),
+                                {"new_password1": NEW_PW, "new_password2": NEW_PW})
+        self.assertEqual(resp.status_code, 302)
+        su.refresh_from_db()
+        self.assertTrue(su.check_password(NEW_PW))
+
+    def test_get_renders(self):
+        self.client.force_login(self.admin)
+        self.assertEqual(self.client.get(reverse("admin_user_password", args=[self.alice.pk])).status_code, 200)
 
 
 class ToggleTests(AdminRoleBase):
-    def toggle(self, user, **extra):
-        return self.client.post(reverse("admin_toggle_active", args=[user.pk]), extra)
+    def toggle(self, user, follow=False, **extra):
+        return self.client.post(reverse("admin_toggle_active", args=[user.pk]), extra, follow=follow)
 
-    def test_deactivate_blocks_login_and_reactivate(self):
+    def test_deactivate_blocks_login_and_reactivate_student(self):
         self.client.force_login(self.admin)
-        resp = self.toggle(self.alice, next=reverse("admin_students"))
-        self.assertRedirects(resp, reverse("admin_students"))
+        resp = self.toggle(self.alice, next=reverse("admin_users"))
+        self.assertRedirects(resp, reverse("admin_users"))
         self.alice.refresh_from_db()
         self.assertFalse(self.alice.is_active)
         self.assertFalse(self.client.__class__().login(username="alice@x.test", password=PW))
-        resp = self.toggle(self.alice)
+        self.toggle(self.alice)
         self.alice.refresh_from_db()
         self.assertTrue(self.alice.is_active)
         self.assertTrue(self.client.__class__().login(username="alice@x.test", password=PW))
+
+    def test_deactivate_and_reactivate_operator(self):
+        self.client.force_login(self.admin)
+        self.toggle(self.operator)
+        self.operator.refresh_from_db()
+        self.assertFalse(self.operator.is_active)
+        self.toggle(self.operator)
+        self.operator.refresh_from_db()
+        self.assertTrue(self.operator.is_active)
 
     def test_messages(self):
         self.client.force_login(self.admin)
@@ -164,15 +432,27 @@ class ToggleTests(AdminRoleBase):
         self.assertContains(self.client.post(reverse("admin_toggle_active", args=[self.alice.pk]), follow=True),
                             "Alice Cruz reactivated.")
 
-    def test_refuses_admin_target_and_self(self):
+    def test_deactivate_other_admin_when_two_active(self):
         other_admin = User.objects.create_user("a2@x.test", PW, full_name="A2", role=Role.ADMIN)
         self.client.force_login(self.admin)
         self.toggle(other_admin)
-        self.toggle(self.admin)
         other_admin.refresh_from_db()
+        self.assertFalse(other_admin.is_active)
+
+    def test_self_blocked(self):
+        self.client.force_login(self.admin)
+        resp = self.toggle(self.admin, follow=True)
+        self.assertContains(resp, "deactivate your own account")
         self.admin.refresh_from_db()
-        self.assertTrue(other_admin.is_active)
         self.assertTrue(self.admin.is_active)
+
+    def test_superuser_blocked(self):
+        su = User.objects.create_superuser("su@x.test", PW, full_name="Su")
+        self.client.force_login(self.admin)
+        resp = self.toggle(su, follow=True)
+        self.assertContains(resp, "Superuser accounts keep the Admin role")
+        su.refresh_from_db()
+        self.assertTrue(su.is_active)
 
     def test_get_not_allowed(self):
         self.client.force_login(self.admin)
@@ -187,43 +467,22 @@ class ToggleTests(AdminRoleBase):
     def test_unsafe_next_ignored(self):
         self.client.force_login(self.admin)
         resp = self.toggle(self.alice, next="https://evil.example/")
-        self.assertRedirects(resp, reverse("admin_students"))
-
-    def test_operator_can_be_deactivated(self):
-        self.client.force_login(self.admin)
-        self.toggle(self.operator)
-        self.operator.refresh_from_db()
-        self.assertFalse(self.operator.is_active)
+        self.assertRedirects(resp, reverse("admin_users"))
 
 
-class OperatorCreateTests(AdminRoleBase):
-    data = {"email": "newop@x.test", "full_name": "New Op", "phone_number": "",
-            "password1": "Str0ng-pass-99", "password2": "Str0ng-pass-99"}
+class ServiceTests(AdminRoleBase):
+    def test_status_change_on_superuser_blocked_at_service_layer(self):
+        su = User.objects.create_superuser("su@x.test", PW, full_name="Su")
+        with self.assertRaisesMessage(ValidationError, "Superuser accounts keep the Admin role"):
+            apply_account_change(self.admin, su.pk, role=Role.ADMIN, is_active=False)
+        with self.assertRaisesMessage(ValidationError, "Superuser accounts keep the Admin role"):
+            apply_account_change(self.admin, su.pk, role=Role.STUDENT, is_active=True)
 
-    def test_create(self):
-        self.client.force_login(self.admin)
-        resp = self.client.post(reverse("admin_operators"), {**self.data, "role": "ADMIN", "is_staff": "on"},
-                                follow=True)
-        self.assertContains(resp, "Operator New Op created.")
-        op = User.objects.get(email="newop@x.test")
-        self.assertEqual(op.role, Role.OPERATOR)
-        self.assertFalse(op.is_staff)
-        self.assertFalse(op.is_superuser)
-        self.assertTrue(op.check_password("Str0ng-pass-99"))
-        self.assertNotEqual(op.password, "Str0ng-pass-99")
-
-    def test_duplicate_email_rejected(self):
-        self.client.force_login(self.admin)
-        resp = self.client.post(reverse("admin_operators"), {**self.data, "email": "OP@x.test"})
-        self.assertEqual(resp.status_code, 200)
-        self.assertContains(resp, "already exists")
-        self.assertEqual(User.objects.filter(role=Role.OPERATOR).count(), 1)
-
-    def test_password_mismatch(self):
-        self.client.force_login(self.admin)
-        resp = self.client.post(reverse("admin_operators"), {**self.data, "password2": "different-1"})
-        self.assertContains(resp, "Passwords do not match.")
-        self.assertFalse(User.objects.filter(email="newop@x.test").exists())
+    def test_omitted_role_keeps_current_role(self):
+        apply_account_change(self.admin, self.alice.pk, is_active=False)
+        self.alice.refresh_from_db()
+        self.assertEqual(self.alice.role, Role.STUDENT)
+        self.assertFalse(self.alice.is_active)
 
 
 class ShopTests(AdminRoleBase):

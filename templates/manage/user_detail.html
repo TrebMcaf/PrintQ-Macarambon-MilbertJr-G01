@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}{{ target.full_name }}{% endblock %}
+{% block content %}
+<p class="mt-3 mb-0"><a href="{% url 'admin_users' %}">&larr; Users</a></p>
+<div class="page-head d-flex flex-wrap align-items-center gap-3">
+  <h1 class="mb-0">{{ target.full_name }}</h1>
+  <span class="badge role {{ target.role }}">{{ target.get_role_display }}</span>
+  {% if target.is_active %}<span class="badge status READY">Active</span>{% else %}<span class="badge status CANCELLED">Inactive</span>{% endif %}
+  {% if target.is_superuser %}<span class="badge flag">Superuser</span>{% endif %}
+  {% if is_self %}<span class="badge flag">You</span>{% endif %}
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <dl class="kv">
+      <dt>Email</dt><dd>{{ target.email }}</dd>
+      <dt>Contact number</dt><dd>{{ target.phone_number|default:"Not set" }}</dd>
+      <dt>Role</dt><dd>{{ target.get_role_display }}</dd>
+      <dt>Status</dt><dd>{% if target.is_active %}Active{% else %}Inactive{% endif %}</dd>
+      <dt>Member since</dt><dd>{{ target.created_at|date:"M j, Y" }}</dd>
+      <dt>Last login</dt><dd>{{ target.last_login|date:"M j, Y · g:i A"|default:"Never" }}</dd>
+    </dl>
+  </div>
+</div>
+
+<div class="d-flex flex-wrap align-items-center gap-2 mt-3">
+  <a class="btn btn-primary" href="{% url 'admin_user_edit' target.pk %}">Edit account</a>
+  {% if can_reset %}
+  <a class="btn btn-outline-secondary" href="{% url 'admin_user_password' target.pk %}">Set password</a>
+  {% endif %}
+  {% if can_toggle %}
+    {% if target.is_active %}
+    <form method="post" action="{% url 'admin_toggle_active' target.pk %}" onsubmit="return confirm('Deactivate {{ target.full_name|escapejs }}? They will not be able to log in.');">
+      {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+      <button type="submit" class="btn btn-outline-danger">Deactivate account</button>
+    </form>
+    {% else %}
+    <form method="post" action="{% url 'admin_toggle_active' target.pk %}">
+      {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+      <button type="submit" class="btn btn-outline-secondary">Reactivate account</button>
+    </form>
+    {% endif %}
+  {% endif %}
+</div>
+{% if locked %}
+<p class="text-muted mt-2 mb-0">Superuser account: role and status are managed in Django admin.</p>
+{% endif %}
+
+{% if target.role == 'STUDENT' or orders %}
+<h2 class="section-title">Orders</h2>
+{% if orders %}
+<div class="table-card">
+  <table class="table table-hover align-middle stack">
+    <thead><tr><th>Tracking code</th><th>Status</th><th class="num">Total</th><th>Placed</th></tr></thead>
+    <tbody>
+    {% for o in orders %}
+      <tr>
+        <td class="lead" data-label="Tracking code"><a class="fw-semibold" href="{% url 'orders:order_detail' o.pk %}">{{ o.tracking_code }}</a></td>
+        <td data-label="Status"><span class="badge status {{ o.status }}">{{ o.get_status_display }}</span></td>
+        <td class="num" data-label="Total">₱{{ o.total_amount }}</td>
+        <td data-label="Placed">{{ o.created_at|date:"M j, Y · g:i A" }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+  <p class="text-muted">No orders yet.</p>
+{% endif %}
+{% endif %}
+{% endblock %}

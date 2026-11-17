@@ -6,6 +6,7 @@
   <p class="summary-line">
     <span><strong>{{ student_count }}</strong> student{{ student_count|pluralize }}</span>
     <span><strong>{{ operator_count }}</strong> operator{{ operator_count|pluralize }}</span>
+    <span><strong>{{ admin_count }}</strong> admin{{ admin_count|pluralize }}</span>
     <span><strong>{{ active_orders }}</strong> active order{{ active_orders|pluralize }}</span>
     <span><strong>{{ orders_today }}</strong> order{{ orders_today|pluralize }} today</span>
     <span>₱<strong>{{ revenue_total|floatformat:2 }}</strong> collected from completed orders</span>
@@ -50,7 +51,7 @@
     <tbody>
     {% for s in recent_students %}
       <tr>
-        <td class="lead" data-label="Name"><a class="fw-semibold" href="{% url 'admin_student_detail' s.pk %}">{{ s.full_name }}</a></td>
+        <td class="lead" data-label="Name"><a class="fw-semibold" href="{% url 'admin_user_detail' s.pk %}">{{ s.full_name }}</a></td>
         <td data-label="Email">{{ s.email }}</td>
         <td class="num" data-label="Orders">{{ s.order_count }}</td>
         <td data-label="Joined">{{ s.created_at|date:"M j, Y" }}</td>
