@@ -1,9 +1,25 @@
 {% extends "base.html" %}
 {% block title %}Print queue{% endblock %}
 {% block content %}
-<div class="page-head">
-  <h1>Print queue</h1>
-  <p class="lead-sm">Oldest first in each column.</p>
+<div class="page-head d-flex flex-wrap align-items-center justify-content-between gap-3">
+  <div>
+    <h1 class="mb-0">Print queue</h1>
+    <p class="lead-sm">Oldest first in each column.</p>
+  </div>
+  {% if shop %}
+  <form method="post" action="{% url 'orders:shop_status' %}" class="d-flex flex-wrap align-items-center gap-2"{% if shop.is_active %} onsubmit="return confirm('Pause online orders? Students will not be able to place new orders.');"{% endif %}>
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+    {% if shop.is_active %}
+    <input type="hidden" name="action" value="pause">
+    <button type="submit" class="btn btn-outline-danger btn-sm">Pause online orders</button>
+    {% else %}
+    <input type="hidden" name="action" value="resume">
+    <div class="alert alert-warning mb-0 py-1 px-2" role="status">Online orders are paused.</div>
+    <button type="submit" class="btn btn-primary btn-sm">Resume online orders</button>
+    {% endif %}
+  </form>
+  {% endif %}
 </div>
 <div id="live-bar" class="live-bar alert alert-info" hidden><span id="live-bar-text">Queue updated.</span> <button type="button" class="btn btn-primary btn-sm" id="live-apply">Show</button></div>
 <div id="live-region">{% include "partials/queue_board.html" %}</div>

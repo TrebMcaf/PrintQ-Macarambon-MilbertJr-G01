@@ -7,6 +7,9 @@
   <p class="lead-sm">PDF only, up to 25 MB each, up to 5 files. Binding is free.</p>
 </div>
 
+{% if paused %}
+<div class="alert alert-warning" role="alert">Online orders are paused right now. Please check back later.</div>
+{% else %}
 <form method="post" enctype="multipart/form-data">
   {% csrf_token %}
   {{ formset.management_form }}
@@ -60,4 +63,5 @@
     </table>
   </div>
 </details>
+{% endif %}
 {% endblock %}

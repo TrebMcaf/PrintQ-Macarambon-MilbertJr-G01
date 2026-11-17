@@ -6,11 +6,12 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, SuspiciousFileOperation, ValidationError
 from django.http import FileResponse, Http404, HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.text import get_valid_filename
 from django.views.decorators.http import require_GET, require_POST
 
 from accounts.decorators import operator_required, student_required
-from catalog.models import PrintRate
+from catalog.models import PrintRate, Shop
 
 from . import services, storage
 from .dashboards import queue_groups
@@ -78,6 +79,9 @@ def live(request):
 def new_order(request):
     if DRAFT_KEY in request.session:
         return redirect("orders:confirm_order")
+    shop = Shop.current()
+    if shop is not None and not shop.is_active:
+        return render(request, "orders/new_order.html", {"paused": True, "rates": PrintRate.objects.filter(is_active=True)})
     if request.method == "POST":
         formset = DocumentFormSet(request.POST, request.FILES, prefix="docs")
         notes_form = NotesForm(request.POST)
@@ -210,6 +214,29 @@ def advance(request, order_id):
     except (ValidationError, PermissionDenied) as exc:
         messages.error(request, _error_text(exc))
     return redirect("home")
+
+
+@require_POST
+@operator_required
+def shop_status(request):
+    shop = Shop.current()
+    if shop is None:
+        messages.error(request, "No shop is set up yet.")
+        return redirect("home")
+    action = request.POST.get("action")
+    if action == "pause":
+        shop.is_active = False
+        messages.success(request, "Online orders paused. Students can't place new orders until you resume.")
+    elif action == "resume":
+        shop.is_active = True
+        messages.success(request, "Online orders resumed.")
+    else:
+        return HttpResponseBadRequest("Unknown action.")
+    shop.save(update_fields=["is_active"])
+    nxt = request.POST.get("next", "")
+    safe = bool(nxt) and url_has_allowed_host_and_scheme(
+        nxt, allowed_hosts={request.get_host()}, require_https=request.is_secure())
+    return redirect(nxt if safe else "home")
 
 
 def track(request):
