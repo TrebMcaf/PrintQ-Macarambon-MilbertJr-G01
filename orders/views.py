@@ -179,8 +179,30 @@ def order_detail(request, order_id):
         "items": order.items.select_related("rate"),
         "logs": order.status_logs.select_related("changed_by"),
         "can_cancel": order.can_cancel and is_owner_student,
+        "can_edit": order.status == Status.PENDING and is_owner_student,
         "live": live_context(request, "auto") if is_owner_student else None,
     })
+
+
+@student_required
+def edit_notes(request, order_id):
+    order = get_object_or_404(Order, pk=order_id, user=request.user)
+    if order.status != Status.PENDING:
+        messages.error(request, "Notes can only be changed while the order is pending.")
+        return redirect("orders:order_detail", order_id=order.pk)
+    if request.method == "POST":
+        form = NotesForm(request.POST)
+        if form.is_valid():
+            try:
+                services.update_notes(order.pk, request.user, form.cleaned_data["notes"])
+            except (ValidationError, PermissionDenied) as exc:
+                messages.error(request, _error_text(exc))
+            else:
+                messages.success(request, f"Notes updated for {order.tracking_code}.")
+                return redirect("orders:order_detail", order_id=order.pk)
+    else:
+        form = NotesForm(initial={"notes": order.notes or ""})
+    return render(request, "orders/edit_notes.html", {"order": order, "form": form})
 
 
 @require_POST
