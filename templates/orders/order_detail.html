@@ -9,6 +9,7 @@
 <div id="live-region">
 {% include "partials/ticket.html" with order=order %}
 {% include "partials/steps.html" with status=order.status %}
+{% if qr_svg %}{% include "partials/order_qr.html" %}{% endif %}
 
 {% if order.status == "READY" and user.is_student %}
 <div class="alert alert-success mt-4">Ready at the counter. Pay ₱{{ order.total_amount }} on pickup.</div>
@@ -81,4 +82,5 @@
   {% endfor %}
 </ul>
 </div>
+{% if qr_svg %}{% include "partials/order_qr_modal.html" %}{% endif %}
 {% endblock %}

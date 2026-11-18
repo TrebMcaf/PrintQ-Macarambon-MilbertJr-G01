@@ -1,0 +1,10 @@
+<section class="qr-card card mt-4" aria-labelledby="qr-heading">
+  <div class="card-body">
+    <button type="button" class="qr-box" data-bs-toggle="modal" data-bs-target="#qr-modal" aria-label="Enlarge the QR code for order {{ order.tracking_code }}">{{ qr_svg }}</button>
+    <div class="qr-text">
+      <h2 id="qr-heading" class="section-title mb-1">Show this at the counter</h2>
+      <p class="text-muted mb-3">The shop can scan this code to find your order straight away.</p>
+      <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#qr-modal">Enlarge QR code</button>
+    </div>
+  </div>
+</section>
