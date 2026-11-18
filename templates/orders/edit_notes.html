@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Edit notes for {{ order.tracking_code }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Edit notes</h1>
+  <p class="lead-sm">Order {{ order.tracking_code }}</p>
+</div>
+<div class="row">
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-body">
+        <form method="post">
+          {% csrf_token %}
+          {% include "partials/form.html" with form=form %}
+          <div class="d-flex flex-wrap align-items-center gap-2">
+            <button type="submit" class="btn btn-primary">Save notes</button>
+            <a class="btn btn-link" href="{% url 'orders:order_detail' order.pk %}">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+    <p class="form-text">You can change notes until printing starts. Files and prices are locked once the order is placed.</p>
+  </div>
+</div>
+{% endblock %}
