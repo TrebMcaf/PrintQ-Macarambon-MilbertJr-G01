@@ -18,6 +18,9 @@ from .dashboards import queue_groups
 from .forms import DocumentFormSet, NotesForm
 from .live import change_message, live_context, parse_since, scope_for, version_for
 from .models import BindingType, Order, OrderItem, Status
+from .qr import QR_STATUSES, qr_svg, track_url
+from .scan import parse_code
+from .search import clean_query, clean_status, search_orders
 from .services import ItemSpec
 
 DRAFT_KEY = "printq_draft"
@@ -51,8 +54,13 @@ def _draft_paths(draft) -> list[str]:
 
 @student_required
 def my_orders(request):
-    orders = Order.objects.filter(user=request.user).order_by("-created_at")
-    return render(request, "orders/my_orders.html", {"orders": orders, "live": live_context(request, "auto")})
+    q = clean_query(request.GET.get("q"))
+    status = clean_status(request.GET.get("status"))
+    orders = search_orders(Order.objects.filter(user=request.user), q, status).order_by("-created_at")
+    return render(request, "orders/my_orders.html", {
+        "orders": orders, "q": q, "status": status, "statuses": Status.choices,
+        "filtered": bool(q or status), "live": live_context(request, "auto"),
+    })
 
 
 @login_required
@@ -174,13 +182,39 @@ def order_detail(request, order_id):
     if request.user.is_student and order.user_id != request.user.pk:
         raise Http404
     is_owner_student = request.user.is_student and order.user_id == request.user.pk
+    qr = None
+    if is_owner_student and order.status in QR_STATUSES:
+        qr = qr_svg(track_url(request, order), title=f"QR code for order {order.tracking_code}")
     return render(request, "orders/order_detail.html", {
         "order": order,
+        "qr_svg": qr,
         "items": order.items.select_related("rate"),
         "logs": order.status_logs.select_related("changed_by"),
         "can_cancel": order.can_cancel and is_owner_student,
+        "can_edit": order.status == Status.PENDING and is_owner_student,
         "live": live_context(request, "auto") if is_owner_student else None,
     })
+
+
+@student_required
+def edit_notes(request, order_id):
+    order = get_object_or_404(Order, pk=order_id, user=request.user)
+    if order.status != Status.PENDING:
+        messages.error(request, "Notes can only be changed while the order is pending.")
+        return redirect("orders:order_detail", order_id=order.pk)
+    if request.method == "POST":
+        form = NotesForm(request.POST)
+        if form.is_valid():
+            try:
+                services.update_notes(order.pk, request.user, form.cleaned_data["notes"])
+            except (ValidationError, PermissionDenied) as exc:
+                messages.error(request, _error_text(exc))
+            else:
+                messages.success(request, f"Notes updated for {order.tracking_code}.")
+                return redirect("orders:order_detail", order_id=order.pk)
+    else:
+        form = NotesForm(initial={"notes": order.notes or ""})
+    return render(request, "orders/edit_notes.html", {"order": order, "form": form})
 
 
 @require_POST
@@ -197,7 +231,31 @@ def cancel(request, order_id):
 
 @operator_required
 def queue(request):
-    return render(request, "orders/queue.html", {"groups": queue_groups(), "live": live_context(request, "notify")})
+    q = clean_query(request.GET.get("q"))
+    return render(request, "orders/queue.html", {
+        "groups": queue_groups(q), "q": q, "live": live_context(request, "notify"),
+    })
+
+
+@operator_required
+def scan(request):
+    """The QR scanner page: camera, photo and manual entry all go through scan_lookup."""
+    return render(request, "orders/scan.html")
+
+
+@operator_required
+@require_GET
+def scan_lookup(request):
+    """Open the order for a scanned or typed code. Accepts a bare code or the tracking link a QR code holds."""
+    code = parse_code(request.GET.get("code", ""))
+    if code is None:
+        messages.error(request, "That is not a PrintQ tracking code. It looks like PQ-2026-0001.")
+        return redirect("orders:scan")
+    order = Order.objects.filter(tracking_code=code).first()
+    if order is None:
+        messages.error(request, f"No order found for {code}.")
+        return redirect("orders:scan")
+    return redirect("orders:order_detail", order_id=order.pk)
 
 
 @require_POST
