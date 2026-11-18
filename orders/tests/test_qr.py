@@ -46,15 +46,19 @@ class QrViewTests(TestCase):
         self.assertEqual(track_url(request, self.order),
                          f"http://testserver{reverse('orders:track')}?code={self.order.tracking_code}")
 
-    def test_owner_sees_qr_card_and_enlarge_modal_while_active(self):
+    def test_owner_sees_show_qr_button_and_collapsed_card_while_active(self):
         self.client.force_login(self.student)
         for status in (Status.PENDING, Status.PRINTING, Status.READY):
             self.order.status = status
             self.order.save(update_fields=["status"])
             resp = self.client.get(self.url)
+            self.assertContains(resp, "Show QR")
+            self.assertContains(resp, 'data-bs-target="#order-qr"')
+            self.assertContains(resp, 'aria-expanded="false"')
+            self.assertContains(resp, 'id="order-qr"')
             self.assertContains(resp, "Show this at the counter")
-            self.assertContains(resp, 'id="qr-modal"')
             self.assertContains(resp, "<svg")
+            self.assertNotContains(resp, "qr-modal")
 
     def test_no_qr_once_completed_or_cancelled(self):
         self.client.force_login(self.student)
@@ -62,8 +66,8 @@ class QrViewTests(TestCase):
             self.order.status = status
             self.order.save(update_fields=["status"])
             resp = self.client.get(self.url)
-            self.assertNotContains(resp, "Show this at the counter")
-            self.assertNotContains(resp, 'id="qr-modal"')
+            self.assertNotContains(resp, "Show QR")
+            self.assertNotContains(resp, 'id="order-qr"')
 
     def test_other_student_cannot_see_the_order_or_qr(self):
         self.client.force_login(self.other)
@@ -73,7 +77,7 @@ class QrViewTests(TestCase):
         self.client.force_login(self.operator)
         resp = self.client.get(self.url)
         self.assertEqual(resp.status_code, 200)
-        self.assertNotContains(resp, "Show this at the counter")
+        self.assertNotContains(resp, "Show QR")
 
     def test_qr_statuses_are_the_active_ones(self):
         self.assertEqual(set(QR_STATUSES), {Status.PENDING, Status.PRINTING, Status.READY})
