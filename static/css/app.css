@@ -263,3 +263,11 @@ input[type=file].form-control::file-selector-button { font-weight: 600; color: v
 .badge.role.OPERATOR { background: #e2eaf7; color: #1b3d70; }
 .badge.role.ADMIN { background: #efe3f6; color: #5a2a78; }
 .badge.flag { background: #fff; color: var(--pq-muted); border: 1px solid var(--pq-line-strong); font-weight: 600; font-size: .72rem; border-radius: 999px; padding: .25em .6em; }
+
+/* Order QR code: a "Show QR" button reveals this card in place. Big, high-contrast and centred, full width on phones. */
+.qr-toggle { min-height: 44px; }
+.qr-toggle[aria-expanded="true"] .when-closed, .qr-toggle[aria-expanded="false"] .when-open { display: none; }
+.qr-card .card-body { text-align: center; }
+.qr-box { width: min(18rem, 100%); margin: 0 auto; padding: .75rem; background: #fff; border: 1px solid var(--pq-line-strong); border-radius: var(--bs-border-radius-lg); line-height: 0; }
+.qr-box svg { display: block; width: 100%; height: auto; }
+@media (min-width: 576px) { .qr-card { max-width: 26rem; } }

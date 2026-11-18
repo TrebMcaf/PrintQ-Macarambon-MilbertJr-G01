@@ -1,0 +1,14 @@
+<div class="qr-section mb-3">
+  <button type="button" class="btn btn-outline-secondary btn-block-sm qr-toggle" data-bs-toggle="collapse" data-bs-target="#order-qr" aria-expanded="false" aria-controls="order-qr">
+    <span class="when-closed">Show QR</span><span class="when-open">Hide QR</span>
+  </button>
+  <div class="collapse mt-3" id="order-qr">
+    <section class="qr-card card" aria-labelledby="qr-heading">
+      <div class="card-body">
+        <div class="qr-box">{{ qr_svg }}</div>
+        <h2 id="qr-heading" class="section-title mt-3 mb-1">Show this at the counter</h2>
+        <p class="text-muted mb-0">The shop can scan this to find order {{ order.tracking_code }} without typing the code. It is optional: you can also just tell them the code.</p>
+      </div>
+    </section>
+  </div>
+</div>

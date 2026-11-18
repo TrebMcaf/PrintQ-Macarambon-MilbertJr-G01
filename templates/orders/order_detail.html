@@ -6,6 +6,8 @@
   {% if not user.is_student %}<p class="lead-sm">Student: {{ order.user.full_name }}</p>{% endif %}
 </div>
 
+{% if qr_svg %}{% include "partials/order_qr.html" %}{% endif %}
+
 <div id="live-region">
 {% include "partials/ticket.html" with order=order %}
 {% include "partials/steps.html" with status=order.status %}

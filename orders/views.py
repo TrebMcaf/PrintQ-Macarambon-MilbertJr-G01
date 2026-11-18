@@ -18,6 +18,7 @@ from .dashboards import queue_groups
 from .forms import DocumentFormSet, NotesForm
 from .live import change_message, live_context, parse_since, scope_for, version_for
 from .models import BindingType, Order, OrderItem, Status
+from .qr import QR_STATUSES, qr_svg, track_url
 from .search import clean_query, clean_status, search_orders
 from .services import ItemSpec
 
@@ -180,8 +181,12 @@ def order_detail(request, order_id):
     if request.user.is_student and order.user_id != request.user.pk:
         raise Http404
     is_owner_student = request.user.is_student and order.user_id == request.user.pk
+    qr = None
+    if is_owner_student and order.status in QR_STATUSES:
+        qr = qr_svg(track_url(request, order), title=f"QR code for order {order.tracking_code}")
     return render(request, "orders/order_detail.html", {
         "order": order,
+        "qr_svg": qr,
         "items": order.items.select_related("rate"),
         "logs": order.status_logs.select_related("changed_by"),
         "can_cancel": order.can_cancel and is_owner_student,
