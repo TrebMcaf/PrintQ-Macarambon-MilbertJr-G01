@@ -26,6 +26,7 @@
               <li class="nav-item"><a class="nav-link{% if n == 'admin_shop' %} active{% endif %}" href="{% url 'admin_shop' %}"{% if n == 'admin_shop' %} aria-current="page"{% endif %}>Shop &amp; rates</a></li>
             {% elif user.is_operator %}
               <li class="nav-item"><a class="nav-link{% if n == 'operator_dashboard' or n == 'queue' %} active{% endif %}" href="{% url 'home' %}"{% if n == 'operator_dashboard' or n == 'queue' %} aria-current="page"{% endif %}>Queue</a></li>
+              <li class="nav-item"><a class="nav-link{% if n == 'scan' %} active{% endif %}" href="{% url 'orders:scan' %}"{% if n == 'scan' %} aria-current="page"{% endif %}>Scan QR</a></li>
             {% else %}
               <li class="nav-item"><a class="nav-link{% if n == 'student_dashboard' %} active{% endif %}" href="{% url 'home' %}"{% if n == 'student_dashboard' %} aria-current="page"{% endif %}>Home</a></li>
               <li class="nav-item"><a class="nav-link{% if n == 'new_order' or n == 'confirm_order' %} active{% endif %}" href="{% url 'orders:new_order' %}"{% if n == 'new_order' or n == 'confirm_order' %} aria-current="page"{% endif %}>New order</a></li>

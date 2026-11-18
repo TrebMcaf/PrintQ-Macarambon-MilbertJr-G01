@@ -29,6 +29,7 @@
         <span class="badge status {{ order.status }} lg">{{ order.get_status_display }}</span>
       </div>
       {% include "partials/steps.html" with status=order.status %}
+      {% if user.is_authenticated and user.is_operator %}<a class="btn btn-primary btn-block-sm mt-3" href="{% url 'orders:order_detail' order.pk %}">Open order</a>{% endif %}
     </div>
   </div>
   {% else %}

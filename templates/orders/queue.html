@@ -21,7 +21,7 @@
   </form>
   {% endif %}
 </div>
-{% include "partials/order_search.html" with q=q placeholder="Search code, student or file" %}
+{% include "partials/order_search.html" with q=q scan=True placeholder="Search code, student or file" %}
 <div id="live-bar" class="live-bar alert alert-info" hidden><span id="live-bar-text">Queue updated.</span> <button type="button" class="btn btn-primary btn-sm" id="live-apply">Show</button></div>
 <div id="live-region">{% include "partials/queue_board.html" %}</div>
 {% endblock %}

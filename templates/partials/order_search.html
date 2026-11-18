@@ -9,5 +9,6 @@
   </select>
   {% endif %}
   <button type="submit" class="btn btn-primary">Search</button>
+  {% if scan %}<a class="btn btn-outline-secondary" href="{% url 'orders:scan' %}">Scan QR</a>{% endif %}
   {% if q or status %}<a class="btn btn-link" href="{{ request.path }}">Clear</a>{% endif %}
 </form>

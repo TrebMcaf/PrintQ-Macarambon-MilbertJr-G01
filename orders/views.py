@@ -19,6 +19,7 @@ from .forms import DocumentFormSet, NotesForm
 from .live import change_message, live_context, parse_since, scope_for, version_for
 from .models import BindingType, Order, OrderItem, Status
 from .qr import QR_STATUSES, qr_svg, track_url
+from .scan import parse_code
 from .search import clean_query, clean_status, search_orders
 from .services import ItemSpec
 
@@ -234,6 +235,27 @@ def queue(request):
     return render(request, "orders/queue.html", {
         "groups": queue_groups(q), "q": q, "live": live_context(request, "notify"),
     })
+
+
+@operator_required
+def scan(request):
+    """The QR scanner page: camera, photo and manual entry all go through scan_lookup."""
+    return render(request, "orders/scan.html")
+
+
+@operator_required
+@require_GET
+def scan_lookup(request):
+    """Open the order for a scanned or typed code. Accepts a bare code or the tracking link a QR code holds."""
+    code = parse_code(request.GET.get("code", ""))
+    if code is None:
+        messages.error(request, "That is not a PrintQ tracking code. It looks like PQ-2026-0001.")
+        return redirect("orders:scan")
+    order = Order.objects.filter(tracking_code=code).first()
+    if order is None:
+        messages.error(request, f"No order found for {code}.")
+        return redirect("orders:scan")
+    return redirect("orders:order_detail", order_id=order.pk)
 
 
 @require_POST
