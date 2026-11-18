@@ -58,6 +58,9 @@
   </table>
 </div>
 {% if order.notes %}<p class="mt-3">Notes: {{ order.notes }}</p>{% endif %}
+{% if can_edit %}
+<p class="mt-2"><a class="btn btn-outline-secondary btn-sm" href="{% url 'orders:edit_notes' order.pk %}">{% if order.notes %}Edit notes{% else %}Add notes{% endif %}</a></p>
+{% endif %}
 
 {% if can_cancel %}
 <div class="mt-4">

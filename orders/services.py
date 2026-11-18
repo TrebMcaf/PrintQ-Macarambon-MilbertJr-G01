@@ -135,3 +135,25 @@ def transition_status(order_id: int, new_status: str, user) -> Order:
 
 def cancel_order(order_id: int, user) -> Order:
     return transition_status(order_id, Status.CANCELLED, user)
+
+
+MAX_NOTES_LENGTH = 500
+
+
+@transaction.atomic
+def update_notes(order_id: int, user, notes: str) -> Order:
+    """Let a student change the notes on their own order while it is still PENDING.
+
+    Files, copies and the locked prices (BR-09) are not editable; only the free-text notes are.
+    """
+    order = Order.objects.select_for_update().get(pk=order_id)
+    if not user.is_student or order.user_id != user.pk:
+        raise PermissionDenied("You can only edit your own orders.")
+    if order.status != Status.PENDING:
+        raise ValidationError("Notes can only be changed while the order is pending.")
+    notes = (notes or "").strip()
+    if len(notes) > MAX_NOTES_LENGTH:
+        raise ValidationError(f"Notes can be at most {MAX_NOTES_LENGTH} characters.")
+    order.notes = notes or None
+    order.save(update_fields=["notes", "updated_at"])
+    return order
