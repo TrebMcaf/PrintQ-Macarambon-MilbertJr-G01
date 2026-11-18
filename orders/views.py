@@ -18,6 +18,7 @@ from .dashboards import queue_groups
 from .forms import DocumentFormSet, NotesForm
 from .live import change_message, live_context, parse_since, scope_for, version_for
 from .models import BindingType, Order, OrderItem, Status
+from .search import clean_query, clean_status, search_orders
 from .services import ItemSpec
 
 DRAFT_KEY = "printq_draft"
@@ -51,8 +52,13 @@ def _draft_paths(draft) -> list[str]:
 
 @student_required
 def my_orders(request):
-    orders = Order.objects.filter(user=request.user).order_by("-created_at")
-    return render(request, "orders/my_orders.html", {"orders": orders, "live": live_context(request, "auto")})
+    q = clean_query(request.GET.get("q"))
+    status = clean_status(request.GET.get("status"))
+    orders = search_orders(Order.objects.filter(user=request.user), q, status).order_by("-created_at")
+    return render(request, "orders/my_orders.html", {
+        "orders": orders, "q": q, "status": status, "statuses": Status.choices,
+        "filtered": bool(q or status), "live": live_context(request, "auto"),
+    })
 
 
 @login_required
@@ -219,7 +225,10 @@ def cancel(request, order_id):
 
 @operator_required
 def queue(request):
-    return render(request, "orders/queue.html", {"groups": queue_groups(), "live": live_context(request, "notify")})
+    q = clean_query(request.GET.get("q"))
+    return render(request, "orders/queue.html", {
+        "groups": queue_groups(q), "q": q, "live": live_context(request, "notify"),
+    })
 
 
 @require_POST

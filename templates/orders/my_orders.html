@@ -6,6 +6,8 @@
   <a class="btn btn-primary btn-block-sm" href="{% url 'orders:new_order' %}">New print order</a>
 </div>
 
+{% include "partials/order_search.html" with q=q status=status statuses=statuses %}
+
 <div id="live-region">
 {% if orders %}
 <div class="table-card">
@@ -23,6 +25,8 @@
     </tbody>
   </table>
 </div>
+{% elif filtered %}
+  {% include "partials/empty.html" with title="No orders match" text="Try a different tracking code, file name or status." cta_url=request.path cta_label="Clear search" %}
 {% else %}
   {% include "partials/empty.html" with title="No orders yet" text="Upload a PDF to place your first order." %}
 {% endif %}

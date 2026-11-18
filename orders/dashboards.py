@@ -9,6 +9,7 @@ from catalog.models import Shop
 
 from .live import live_context
 from .models import Order, OrderStatusLog, Status
+from .search import clean_query, search_orders
 
 QUEUE_SECTIONS = [
     (Status.PENDING, "Waiting"),
@@ -17,9 +18,12 @@ QUEUE_SECTIONS = [
 ]
 
 
-def queue_groups():
-    """Active orders grouped by status for the operator board, oldest first in each group."""
-    base = Order.objects.select_related("user").prefetch_related("items")
+def queue_groups(q=""):
+    """Active orders grouped by status for the operator board, oldest first in each group.
+
+    q optionally narrows the board to orders matching a tracking code, student or file name.
+    """
+    base = search_orders(Order.objects.select_related("user").prefetch_related("items"), q, by_student=True)
     return [
         {"status": status, "label": label,
          "orders": list(base.filter(status=status).order_by("created_at"))}
@@ -46,6 +50,7 @@ def student_dashboard(request):
 @operator_required
 def operator_dashboard(request):
     today = timezone.localdate()
+    q = clean_query(request.GET.get("q"))
     counts = dict(Order.objects.values_list("status").annotate(n=Count("order_id")))
     completed_ids = OrderStatusLog.objects.filter(new_status=Status.COMPLETED, changed_at__date=today).values("order_id")
     completed_today = Order.objects.filter(order_id__in=completed_ids, status=Status.COMPLETED)
@@ -58,7 +63,8 @@ def operator_dashboard(request):
         "completed_today": completed_today.count(),
         "collected_today": completed_today.aggregate(s=Sum("total_amount"))["s"] or Decimal("0.00"),
         "oldest_pending": Order.objects.filter(status=Status.PENDING).select_related("user").order_by("created_at")[:5],
-        "groups": queue_groups(),
+        "groups": queue_groups(q),
+        "q": q,
         "live": live_context(request, "notify"),
     }
     return render(request, "dashboards/operator.html", ctx)

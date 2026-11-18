@@ -1,0 +1,13 @@
+<form method="get" class="d-flex flex-wrap align-items-center gap-2 mb-3" role="search">
+  <label class="visually-hidden" for="order-q">Search orders</label>
+  <input id="order-q" class="form-control w-auto" size="26" type="search" name="q" value="{{ q }}" maxlength="60" placeholder="{{ placeholder|default:'Search tracking code or file' }}">
+  {% if statuses %}
+  <label class="visually-hidden" for="order-status">Status</label>
+  <select id="order-status" name="status" class="form-select w-auto">
+    <option value="">All statuses</option>
+    {% for value, label in statuses %}<option value="{{ value }}"{% if value == status %} selected{% endif %}>{{ label }}</option>{% endfor %}
+  </select>
+  {% endif %}
+  <button type="submit" class="btn btn-primary">Search</button>
+  {% if q or status %}<a class="btn btn-link" href="{{ request.path }}">Clear</a>{% endif %}
+</form>
